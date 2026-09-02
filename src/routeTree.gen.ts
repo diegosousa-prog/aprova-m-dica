@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AnotacoesRouteImport } from './routes/anotacoes'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DesempenhoRouteImport } from './routes/desempenho'
@@ -19,6 +20,11 @@ import { Route as SimuladosRouteImport } from './routes/simulados'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnotacoesRoute = AnotacoesRouteImport.update({
+  id: '/anotacoes',
+  path: '/anotacoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -49,6 +55,7 @@ const SimuladosRoute = SimuladosRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/anotacoes': typeof AnotacoesRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/desempenho': typeof DesempenhoRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/anotacoes': typeof AnotacoesRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/desempenho': typeof DesempenhoRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/anotacoes': typeof AnotacoesRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/desempenho': typeof DesempenhoRoute
@@ -75,12 +84,26 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/dashboard' | '/desempenho' | '/questoes' | '/simulados'
+    | '/'
+    | '/anotacoes'
+    | '/auth'
+    | '/dashboard'
+    | '/desempenho'
+    | '/questoes'
+    | '/simulados'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/desempenho' | '/questoes' | '/simulados'
+  to:
+    | '/'
+    | '/anotacoes'
+    | '/auth'
+    | '/dashboard'
+    | '/desempenho'
+    | '/questoes'
+    | '/simulados'
   id:
     | '__root__'
     | '/'
+    | '/anotacoes'
     | '/auth'
     | '/dashboard'
     | '/desempenho'
@@ -90,6 +113,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnotacoesRoute: typeof AnotacoesRoute
   AuthRoute: typeof AuthRoute
   DashboardRoute: typeof DashboardRoute
   DesempenhoRoute: typeof DesempenhoRoute
@@ -104,6 +128,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/anotacoes': {
+      id: '/anotacoes'
+      path: '/anotacoes'
+      fullPath: '/anotacoes'
+      preLoaderRoute: typeof AnotacoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -146,6 +177,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnotacoesRoute: AnotacoesRoute,
   AuthRoute: AuthRoute,
   DashboardRoute: DashboardRoute,
   DesempenhoRoute: DesempenhoRoute,
