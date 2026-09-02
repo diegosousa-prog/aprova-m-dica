@@ -1,0 +1,220 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { Filter, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { useMemo, useState } from "react";
+
+import { AppShell } from "@/components/app-shell";
+import { QuestaoCard } from "@/components/questao-card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import {
+  anos,
+  bancas,
+  especialidades,
+  questoes,
+  statusQuestao,
+  subespecialidades,
+  type StatusQuestao,
+} from "@/data/mock";
+
+export const Route = createFileRoute("/questoes")({
+  head: () => ({
+    meta: [
+      { title: "Banco de questões — QBMed" },
+      {
+        name: "description",
+        content: "Filtre questões fictícias por especialidade, banca, ano e status e resolva com feedback imediato.",
+      },
+      { property: "og:title", content: "Banco de questões — QBMed" },
+      { property: "og:description", content: "Questões comentadas com filtros avançados e fórum de discussão." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: QuestoesPage,
+});
+
+const TODOS = "todos";
+
+function QuestoesPage() {
+  const [especialidade, setEspecialidade] = useState(TODOS);
+  const [subespecialidade, setSubespecialidade] = useState(TODOS);
+  const [banca, setBanca] = useState(TODOS);
+  const [ano, setAno] = useState(TODOS);
+  const [status, setStatus] = useState<StatusQuestao | "todos">(TODOS);
+  const [busca, setBusca] = useState("");
+
+  const subOpcoes = especialidade === TODOS ? [] : (subespecialidades[especialidade] ?? []);
+
+  const filtradas = useMemo(
+    () =>
+      questoes.filter((q) => {
+        if (especialidade !== TODOS && q.especialidade !== especialidade) return false;
+        if (subespecialidade !== TODOS && q.subespecialidade !== subespecialidade) return false;
+        if (banca !== TODOS && q.banca !== banca) return false;
+        if (ano !== TODOS && String(q.ano) !== ano) return false;
+        if (busca && !`${q.enunciado} ${q.tags.join(" ")}`.toLowerCase().includes(busca.toLowerCase()))
+          return false;
+        return true;
+      }),
+    [especialidade, subespecialidade, banca, ano, busca],
+  );
+
+  function limpar() {
+    setEspecialidade(TODOS);
+    setSubespecialidade(TODOS);
+    setBanca(TODOS);
+    setAno(TODOS);
+    setStatus(TODOS);
+    setBusca("");
+  }
+
+  const filtrosAtivos = [especialidade, subespecialidade, banca, ano, status].filter((f) => f !== TODOS).length;
+
+  return (
+    <AppShell titulo="Questões" descricao="Monte seu caderno com filtros avançados e resolva com feedback imediato.">
+      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+        <Card className="h-fit lg:sticky lg:top-24">
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <SlidersHorizontal className="size-4 text-accent" /> Filtros
+              {filtrosAtivos > 0 ? <Badge variant="secondary">{filtrosAtivos}</Badge> : null}
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={limpar}>
+              <RotateCcw className="mr-1 size-3.5" /> Limpar
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-2">
+              <Label>Buscar por tema</Label>
+              <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Ex.: dor torácica" />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Especialidade</Label>
+              <Select
+                value={especialidade}
+                onValueChange={(v) => {
+                  setEspecialidade(v);
+                  setSubespecialidade(TODOS);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TODOS}>Todas</SelectItem>
+                  {especialidades.map((e) => (
+                    <SelectItem key={e} value={e}>
+                      {e}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Subespecialidade</Label>
+              <Select value={subespecialidade} onValueChange={setSubespecialidade} disabled={subOpcoes.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a especialidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TODOS}>Todas</SelectItem>
+                  {subOpcoes.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Banca</Label>
+              <Select value={banca} onValueChange={setBanca}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TODOS}>Todas</SelectItem>
+                  {bancas.map((b) => (
+                    <SelectItem key={b} value={b}>
+                      {b}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Ano</Label>
+              <div className="flex flex-wrap gap-1.5">
+                <button type="button" onClick={() => setAno(TODOS)}>
+                  <Badge variant={ano === TODOS ? "default" : "outline"} className="cursor-pointer">
+                    Todos
+                  </Badge>
+                </button>
+                {anos.map((a) => (
+                  <button key={a} type="button" onClick={() => setAno(String(a))}>
+                    <Badge
+                      variant={ano === String(a) ? "default" : "outline"}
+                      className={cn("cursor-pointer", ano === String(a) && "bg-accent text-accent-foreground")}
+                    >
+                      {a}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Status</Label>
+              <div className="flex flex-wrap gap-1.5">
+                <button type="button" onClick={() => setStatus(TODOS)}>
+                  <Badge variant={status === TODOS ? "default" : "outline"} className="cursor-pointer">
+                    Todas
+                  </Badge>
+                </button>
+                {statusQuestao.map((s) => (
+                  <button key={s} type="button" onClick={() => setStatus(s)}>
+                    <Badge
+                      variant={status === s ? "default" : "outline"}
+                      className={cn("cursor-pointer", status === s && "bg-accent text-accent-foreground")}
+                    >
+                      {s}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3">
+            <Filter className="size-4 text-accent" />
+            <p className="text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">{filtradas.length}</span> questões encontradas
+              {status !== TODOS ? ` • status: ${status}` : ""}
+            </p>
+          </div>
+
+          {filtradas.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center text-sm text-muted-foreground">
+                Nenhuma questão encontrada com esses filtros. Tente limpar alguns critérios.
+              </CardContent>
+            </Card>
+          ) : (
+            filtradas.map((q) => <QuestaoCard key={q.id} questao={q} />)
+          )}
+        </div>
+      </div>
+    </AppShell>
+  );
+}
