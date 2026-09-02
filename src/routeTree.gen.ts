@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as DesempenhoRouteImport } from './routes/desempenho'
 import { Route as QuestoesRouteImport } from './routes/questoes'
 import { Route as SimuladosRouteImport } from './routes/simulados'
 
@@ -30,6 +31,11 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DesempenhoRoute = DesempenhoRouteImport.update({
+  id: '/desempenho',
+  path: '/desempenho',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QuestoesRoute = QuestoesRouteImport.update({
   id: '/questoes',
   path: '/questoes',
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/desempenho': typeof DesempenhoRoute
   '/questoes': typeof QuestoesRoute
   '/simulados': typeof SimuladosRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/desempenho': typeof DesempenhoRoute
   '/questoes': typeof QuestoesRoute
   '/simulados': typeof SimuladosRoute
 }
@@ -60,21 +68,31 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/desempenho': typeof DesempenhoRoute
   '/questoes': typeof QuestoesRoute
   '/simulados': typeof SimuladosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/dashboard' | '/questoes' | '/simulados'
+  fullPaths:
+    '/' | '/auth' | '/dashboard' | '/desempenho' | '/questoes' | '/simulados'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/questoes' | '/simulados'
-  id: '__root__' | '/' | '/auth' | '/dashboard' | '/questoes' | '/simulados'
+  to: '/' | '/auth' | '/dashboard' | '/desempenho' | '/questoes' | '/simulados'
+  id:
+    | '__root__'
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/desempenho'
+    | '/questoes'
+    | '/simulados'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   DashboardRoute: typeof DashboardRoute
+  DesempenhoRoute: typeof DesempenhoRoute
   QuestoesRoute: typeof QuestoesRoute
   SimuladosRoute: typeof SimuladosRoute
 }
@@ -102,6 +120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/desempenho': {
+      id: '/desempenho'
+      path: '/desempenho'
+      fullPath: '/desempenho'
+      preLoaderRoute: typeof DesempenhoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/questoes': {
       id: '/questoes'
       path: '/questoes'
@@ -123,6 +148,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   DashboardRoute: DashboardRoute,
+  DesempenhoRoute: DesempenhoRoute,
   QuestoesRoute: QuestoesRoute,
   SimuladosRoute: SimuladosRoute,
 }
