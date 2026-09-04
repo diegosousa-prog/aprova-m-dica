@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useEstudo } from "@/hooks/use-estudo";
 import {
   anos,
   bancas,
@@ -41,6 +42,8 @@ export const Route = createFileRoute("/questoes")({
 const TODOS = "todos";
 
 function QuestoesPage() {
+  const { estado } = useEstudo();
+
   const [especialidade, setEspecialidade] = useState(TODOS);
   const [subespecialidade, setSubespecialidade] = useState(TODOS);
   const [banca, setBanca] = useState(TODOS);
@@ -53,16 +56,66 @@ function QuestoesPage() {
   const filtradas = useMemo(
     () =>
       questoes.filter((q) => {
-        if (especialidade !== TODOS && q.especialidade !== especialidade) return false;
-        if (subespecialidade !== TODOS && q.subespecialidade !== subespecialidade) return false;
-        if (banca !== TODOS && q.banca !== banca) return false;
-        if (ano !== TODOS && String(q.ano) !== ano) return false;
-        if (busca && !`${q.enunciado} ${q.tags.join(" ")}`.toLowerCase().includes(busca.toLowerCase()))
+        if (especialidade !== TODOS && q.especialidade !== especialidade) {
           return false;
-        return true;
-      }),
-    [especialidade, subespecialidade, banca, ano, busca],
-  );
+        }
+  
+        if (
+          subespecialidade !== TODOS &&
+          q.subespecialidade !== subespecialidade
+        ) {
+          return false;
+        }
+
+        if (banca !== TODOS && q.banca !== banca) {
+          return false;
+        }
+
+        if (ano !== TODOS && String(q.ano) !== ano) {
+          return false;
+        }
+
+        if (
+          busca &&
+          !`${q.enunciado} ${q.tags.join(" ")}`
+            .toLowerCase()
+            .includes(busca.toLowerCase())
+        ) {
+          return false;
+        }
+
+      const resposta = estado.respostas[q.id];
+      const favorita = estado.favoritas.includes(q.id);
+
+      if (status === "Não respondidas" && resposta) {
+        return false;
+      }
+
+      if (status === "Acertadas" && (!resposta || !resposta.acertou)) {
+        return false;
+      }
+
+      if (status === "Erradas" && (!resposta || resposta.acertou)) {
+        return false;
+      }
+
+      if (status === "Favoritas" && !favorita) {
+        return false;
+      }
+
+      return true;
+    }),
+  [
+    especialidade,
+    subespecialidade,
+    banca,
+    ano,
+    busca,
+    status,
+    estado.respostas,
+    estado.favoritas,
+  ],
+);
 
   function limpar() {
     setEspecialidade(TODOS);

@@ -18,35 +18,65 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { Comentario, Questao } from "@/data/mock";
+import { useEstudo } from "@/hooks/use-estudo";
 
 export function QuestaoCard({ questao }: { questao: Questao }) {
-  const [selecionada, setSelecionada] = useState<string | null>(null);
-  const [respondida, setRespondida] = useState(false);
-  const [favorita, setFavorita] = useState(false);
+  const {
+    estado,
+    registrarResposta,
+    alternarFavorita,
+    salvarAnotacao,
+    limparResposta,
+    estaFavorita,
+  } = useEstudo();
+
+  const respostaSalva = estado.respostas[questao.id];
+
+  const [selecionada, setSelecionada] = useState<string | null>(
+    respostaSalva?.alternativaEscolhida ?? null,
+  );
+  const [respondida, setRespondida] = useState(Boolean(respostaSalva));
   const [anotando, setAnotando] = useState(false);
-  const [anotacao, setAnotacao] = useState("");
-  const [resolucaoAberta, setResolucaoAberta] = useState(false);
-  const [comentarios, setComentarios] = useState<Comentario[]>(questao.comentarios);
+  const [anotacao, setAnotacao] = useState(
+    estado.anotacoes[questao.id] ?? "",
+  );
+  const [resolucaoAberta, setResolucaoAberta] = useState(
+    Boolean(respostaSalva),
+  );
+  const [comentarios, setComentarios] = useState<Comentario[]>(
+    questao.comentarios,
+  );
   const [novoComentario, setNovoComentario] = useState("");
 
+  const favorita = estaFavorita(questao.id);
   const acertou = respondida && selecionada === questao.correta;
 
   function responder() {
-    if (!selecionada) {
-      toast.warning("Selecione uma alternativa antes de responder.");
-      return;
-    }
-    setRespondida(true);
-    setResolucaoAberta(true);
-    if (selecionada === questao.correta) toast.success("Resposta correta! Muito bem.");
-    else toast.error("Resposta incorreta. Confira a resolução comentada.");
+  if (!selecionada) {
+    toast.warning("Selecione uma alternativa antes de responder.");
+    return;
   }
 
-  function reiniciar() {
-    setRespondida(false);
-    setSelecionada(null);
-    setResolucaoAberta(false);
+  const alternativa = selecionada as Questao["correta"];
+
+  registrarResposta(questao, alternativa);
+
+  setRespondida(true);
+  setResolucaoAberta(true);
+
+  if (alternativa === questao.correta) {
+    toast.success("Resposta correta! Muito bem.");
+  } else {
+    toast.error("Resposta incorreta. Confira a resolução comentada.");
   }
+}
+
+  function reiniciar() {
+  limparResposta(questao.id);
+  setRespondida(false);
+  setSelecionada(null);
+  setResolucaoAberta(false);
+}
 
   function comentar() {
     if (!novoComentario.trim()) return;
@@ -90,8 +120,13 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
               size="icon"
               aria-label="Favoritar questão"
               onClick={() => {
-                setFavorita((f) => !f);
-                toast(favorita ? "Removida dos favoritos" : "Adicionada aos favoritos");
+                alternarFavorita(questao.id);
+
+                toast(
+                  favorita
+                  ? "Removida dos favoritos"
+                  : "Adicionada aos favoritos",
+                );
               }}
             >
               <Heart className={cn("size-4", favorita && "fill-destructive text-destructive")} />
@@ -129,6 +164,7 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
               <Button
                 size="sm"
                 onClick={() => {
+                  salvarAnotacao(questao.id, anotacao)
                   toast.success("Anotação salva em Anotações.");
                   setAnotando(false);
                 }}
