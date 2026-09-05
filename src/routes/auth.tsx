@@ -141,12 +141,18 @@ function AuthPage() {
       return;
     }
 
-    const { error } = await supabase.from("profiles").upsert({
-      id: user.id,
-      ano_formacao: ano,
-      especialidades: escolhidas,
-      updated_at: new Date().toISOString(),
-    });
+    const { data: perfilSalvo, error } = await supabase
+      .from("profiles")
+      .upsert({
+        id: user.id,
+        ano_formacao: ano,
+        especialidades: escolhidas,
+        updated_at: new Date().toISOString(),
+      })
+      .select();
+
+    console.log("PERFIL SALVO:", perfilSalvo);
+    console.log("ERRO AO SALVAR PERFIL:", error);
 
     setCarregando(false);
 
