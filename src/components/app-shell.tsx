@@ -156,7 +156,9 @@ export function AppShell({
                   <span className="text-xs font-normal text-muted-foreground">{usuario.email}</span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Meu perfil</DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/perfil">Meu perfil</Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem>Assinatura</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
