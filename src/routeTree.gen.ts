@@ -17,6 +17,7 @@ import { Route as DesempenhoRouteImport } from './routes/desempenho'
 import { Route as PerfilRouteImport } from './routes/perfil'
 import { Route as QuestoesRouteImport } from './routes/questoes'
 import { Route as SimuladosRouteImport } from './routes/simulados'
+import { Route as AdministracaoQuestoesRouteImport } from './routes/administracao.questoes'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -58,6 +59,11 @@ const SimuladosRoute = SimuladosRouteImport.update({
   path: '/simulados',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdministracaoQuestoesRoute = AdministracaoQuestoesRouteImport.update({
+  id: '/administracao/questoes',
+  path: '/administracao/questoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/perfil': typeof PerfilRoute
   '/questoes': typeof QuestoesRoute
   '/simulados': typeof SimuladosRoute
+  '/administracao/questoes': typeof AdministracaoQuestoesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByTo {
   '/perfil': typeof PerfilRoute
   '/questoes': typeof QuestoesRoute
   '/simulados': typeof SimuladosRoute
+  '/administracao/questoes': typeof AdministracaoQuestoesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +97,7 @@ export interface FileRoutesById {
   '/perfil': typeof PerfilRoute
   '/questoes': typeof QuestoesRoute
   '/simulados': typeof SimuladosRoute
+  '/administracao/questoes': typeof AdministracaoQuestoesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/perfil'
     | '/questoes'
     | '/simulados'
+    | '/administracao/questoes'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/perfil'
     | '/questoes'
     | '/simulados'
+    | '/administracao/questoes'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/perfil'
     | '/questoes'
     | '/simulados'
+    | '/administracao/questoes'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -132,6 +144,7 @@ export interface RootRouteChildren {
   PerfilRoute: typeof PerfilRoute
   QuestoesRoute: typeof QuestoesRoute
   SimuladosRoute: typeof SimuladosRoute
+  AdministracaoQuestoesRoute: typeof AdministracaoQuestoesRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SimuladosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/administracao/questoes': {
+      id: '/administracao/questoes'
+      path: '/administracao/questoes'
+      fullPath: '/administracao/questoes'
+      preLoaderRoute: typeof AdministracaoQuestoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -204,6 +224,7 @@ const rootRouteChildren: RootRouteChildren = {
   PerfilRoute: PerfilRoute,
   QuestoesRoute: QuestoesRoute,
   SimuladosRoute: SimuladosRoute,
+  AdministracaoQuestoesRoute: AdministracaoQuestoesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

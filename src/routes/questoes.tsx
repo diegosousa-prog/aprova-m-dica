@@ -23,14 +23,7 @@ import {
 } from "@/components/ui/select";
 import { useEstudo } from "@/hooks/use-estudo";
 import { supabase } from "@/lib/supabase";
-import {
-  especialidades,
-  statusQuestao,
-  subespecialidades,
-  type Alternativa,
-  type Questao,
-  type StatusQuestao,
-} from "@/data/mock";
+import { statusQuestao, type Questao, type StatusQuestao } from "@/data/mock";
 
 export const Route = createFileRoute("/questoes")({
   head: () => ({
@@ -39,7 +32,7 @@ export const Route = createFileRoute("/questoes")({
       {
         name: "description",
         content:
-          "Banco de questões do QBMed com filtros por especialidade, banca, ano e status.",
+          "Banco de questões do QBMed com filtros por grande área, especialidade e tema.",
       },
     ],
   }),
@@ -48,12 +41,93 @@ export const Route = createFileRoute("/questoes")({
 
 const TODOS = "todos";
 
+const grandeAreas = [
+  "Clínica Médica",
+  "Cirurgia Geral",
+  "Ginecologia e Obstetrícia",
+  "Pediatria",
+  "Medicina Preventiva e Social / Saúde Coletiva",
+  "Miscelânea",
+];
+
+const especialidadesPorGrandeArea: Record<string, string[]> = {
+  "Clínica Médica": [
+    "Alergia e Imunologia",
+    "Angiologia",
+    "Cardiologia",
+    "Clínica Médica",
+    "Dermatologia",
+    "Endocrinologia e Metabologia",
+    "Gastroenterologia",
+    "Geriatria",
+    "Hematologia e Hemoterapia",
+    "Infectologia",
+    "Nefrologia",
+    "Neurologia",
+    "Oncologia Clínica",
+    "Pneumologia",
+    "Reumatologia",
+  ],
+
+  "Cirurgia Geral": [
+    "Cirurgia Cardiovascular",
+    "Cirurgia da Mão",
+    "Cirurgia de Cabeça e Pescoço",
+    "Cirurgia do Aparelho Digestivo",
+    "Cirurgia Geral",
+    "Cirurgia Oncológica",
+    "Cirurgia Plástica",
+    "Cirurgia Torácica",
+    "Cirurgia Vascular",
+    "Coloproctologia",
+    "Mastologia",
+    "Neurocirurgia",
+    "Oftalmologia",
+    "Ortopedia e Traumatologia",
+    "Otorrinolaringologia",
+    "Urologia",
+  ],
+
+  "Ginecologia e Obstetrícia": ["Ginecologia e Obstetrícia"],
+
+  Pediatria: ["Cirurgia Pediátrica", "Pediatria"],
+
+  "Medicina Preventiva e Social / Saúde Coletiva": [
+    "Medicina da Família e Comunidade",
+    "Medicina do Trabalho",
+    "Medicina do Tráfego",
+    "Medicina Legal e Perícia Médica",
+    "Medicina Preventiva e Social",
+  ],
+
+  Miscelânea: [
+    "Acupuntura",
+    "Anestesiologia",
+    "Endoscopia",
+    "Genética Médica",
+    "Homeopatia",
+    "Medicina Aeroespacial",
+    "Medicina de Emergência",
+    "Medicina do Esporte",
+    "Medicina Física e Reabilitação",
+    "Medicina Intensiva",
+    "Medicina Nuclear",
+    "Nutrologia",
+    "Patologia",
+    "Patologia Clínica / Medicina Laboratorial",
+    "Psiquiatria",
+    "Radiologia e Diagnóstico por Imagem",
+    "Radioterapia",
+  ],
+};
+
 type QuestaoSupabase = {
   id: number;
   enunciado: string;
   alternativas: Record<string, string>;
   resposta_correta: "A" | "B" | "C" | "D" | "E";
   explicacao: string | null;
+  grande_area: string | null;
   especialidade: string;
   subespecialidade: string | null;
   tema: string | null;
@@ -65,7 +139,13 @@ type QuestaoSupabase = {
 };
 
 function transformarQuestao(q: QuestaoSupabase): Questao {
-  const letras: Alternativa["letra"][] = ["A", "B", "C", "D", "E"];
+  const letras: ("A" | "B" | "C" | "D" | "E")[] = [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+  ];
 
   const alternativas = letras
     .filter((letra) => q.alternativas?.[letra])
@@ -94,11 +174,17 @@ function QuestoesPage() {
   const { estado } = useEstudo();
 
   const [questoes, setQuestoes] = useState<Questao[]>([]);
+  const [questoesOriginais, setQuestoesOriginais] = useState<
+    QuestaoSupabase[]
+  >([]);
+
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
+  const [grandeArea, setGrandeArea] = useState(TODOS);
   const [especialidade, setEspecialidade] = useState(TODOS);
-  const [subespecialidade, setSubespecialidade] = useState(TODOS);
+  const [tema, setTema] = useState(TODOS);
+
   const [banca, setBanca] = useState(TODOS);
   const [ano, setAno] = useState(TODOS);
   const [status, setStatus] = useState<StatusQuestao | "todos">(TODOS);
@@ -121,21 +207,48 @@ function QuestoesPage() {
         return;
       }
 
-      const questoesFormatadas = (data as QuestaoSupabase[]).map(
-        transformarQuestao,
-      );
+      const dados = (data ?? []) as QuestaoSupabase[];
 
-      setQuestoes(questoesFormatadas);
+      setQuestoesOriginais(dados);
+      setQuestoes(dados.map(transformarQuestao));
       setCarregando(false);
     }
 
     void carregarQuestoes();
   }, []);
 
-  const subOpcoes =
-    especialidade === TODOS
-      ? []
-      : (subespecialidades[especialidade] ?? []);
+  const especialidades = useMemo(() => {
+    if (grandeArea === TODOS) {
+      return Array.from(
+        new Set(
+          questoesOriginais
+            .map((q) => q.especialidade)
+            .filter(Boolean),
+        ),
+      ).sort();
+    }
+
+    return especialidadesPorGrandeArea[grandeArea] ?? [];
+  }, [grandeArea, questoesOriginais]);
+
+  const temas = useMemo(() => {
+    return Array.from(
+      new Set(
+        questoesOriginais
+          .filter(
+            (q) =>
+              grandeArea === TODOS || q.grande_area === grandeArea,
+          )
+          .filter(
+            (q) =>
+              especialidade === TODOS ||
+              q.especialidade === especialidade,
+          )
+          .map((q) => q.tema)
+          .filter(Boolean),
+      ),
+    ).sort() as string[];
+  }, [grandeArea, especialidade, questoesOriginais]);
 
   const bancas = useMemo(() => {
     return Array.from(
@@ -160,6 +273,21 @@ function QuestoesPage() {
   const filtradas = useMemo(
     () =>
       questoes.filter((q) => {
+        const original = questoesOriginais.find(
+          (item) => String(item.id) === q.id,
+        );
+
+        if (!original) {
+          return false;
+        }
+
+        if (
+          grandeArea !== TODOS &&
+          original.grande_area !== grandeArea
+        ) {
+          return false;
+        }
+
         if (
           especialidade !== TODOS &&
           q.especialidade !== especialidade
@@ -167,10 +295,7 @@ function QuestoesPage() {
           return false;
         }
 
-        if (
-          subespecialidade !== TODOS &&
-          q.subespecialidade !== subespecialidade
-        ) {
+        if (tema !== TODOS && original.tema !== tema) {
           return false;
         }
 
@@ -184,7 +309,9 @@ function QuestoesPage() {
 
         if (
           busca &&
-          !`${q.enunciado} ${q.tags.join(" ")} ${q.subespecialidade}`
+          !`${q.enunciado} ${q.tags.join(" ")} ${
+            q.especialidade
+          } ${original.tema ?? ""}`
             .toLowerCase()
             .includes(busca.toLowerCase())
         ) {
@@ -198,11 +325,17 @@ function QuestoesPage() {
           return false;
         }
 
-        if (status === "Acertadas" && (!resposta || !resposta.acertou)) {
+        if (
+          status === "Acertadas" &&
+          (!resposta || !resposta.acertou)
+        ) {
           return false;
         }
 
-        if (status === "Erradas" && (!resposta || resposta.acertou)) {
+        if (
+          status === "Erradas" &&
+          (!resposta || resposta.acertou)
+        ) {
           return false;
         }
 
@@ -214,8 +347,10 @@ function QuestoesPage() {
       }),
     [
       questoes,
+      questoesOriginais,
+      grandeArea,
       especialidade,
-      subespecialidade,
+      tema,
       banca,
       ano,
       busca,
@@ -225,9 +360,21 @@ function QuestoesPage() {
     ],
   );
 
-  function limpar() {
+  function alterarGrandeArea(valor: string) {
+    setGrandeArea(valor);
     setEspecialidade(TODOS);
-    setSubespecialidade(TODOS);
+    setTema(TODOS);
+  }
+
+  function alterarEspecialidade(valor: string) {
+    setEspecialidade(valor);
+    setTema(TODOS);
+  }
+
+  function limpar() {
+    setGrandeArea(TODOS);
+    setEspecialidade(TODOS);
+    setTema(TODOS);
     setBanca(TODOS);
     setAno(TODOS);
     setStatus(TODOS);
@@ -235,8 +382,9 @@ function QuestoesPage() {
   }
 
   const filtrosAtivos = [
+    grandeArea,
     especialidade,
-    subespecialidade,
+    tema,
     banca,
     ano,
     status,
@@ -245,7 +393,7 @@ function QuestoesPage() {
   return (
     <AppShell
       titulo="Questões"
-      descricao="Monte seu caderno com filtros avançados e resolva com feedback imediato."
+      descricao="Monte seu caderno com filtros por grande área, especialidade e tema."
     >
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <Card className="h-fit lg:sticky lg:top-24">
@@ -253,6 +401,7 @@ function QuestoesPage() {
             <CardTitle className="flex items-center gap-2 text-base">
               <SlidersHorizontal className="size-4 text-accent" />
               Filtros
+
               {filtrosAtivos > 0 ? (
                 <Badge variant="secondary">{filtrosAtivos}</Badge>
               ) : null}
@@ -266,7 +415,8 @@ function QuestoesPage() {
 
           <CardContent className="space-y-4">
             <div className="grid gap-2">
-              <Label>Buscar por tema</Label>
+              <Label>Buscar</Label>
+
               <Input
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
@@ -275,25 +425,22 @@ function QuestoesPage() {
             </div>
 
             <div className="grid gap-2">
-              <Label>Especialidade</Label>
+              <Label>Grande Área</Label>
 
               <Select
-                value={especialidade}
-                onValueChange={(v) => {
-                  setEspecialidade(v);
-                  setSubespecialidade(TODOS);
-                }}
+                value={grandeArea}
+                onValueChange={alterarGrandeArea}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Todas" />
                 </SelectTrigger>
 
                 <SelectContent>
                   <SelectItem value={TODOS}>Todas</SelectItem>
 
-                  {especialidades.map((e) => (
-                    <SelectItem key={e} value={e}>
-                      {e}
+                  {grandeAreas.map((area) => (
+                    <SelectItem key={area} value={area}>
+                      {area}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -301,23 +448,66 @@ function QuestoesPage() {
             </div>
 
             <div className="grid gap-2">
-              <Label>Subespecialidade</Label>
+              <Label>Especialidade</Label>
 
               <Select
-                value={subespecialidade}
-                onValueChange={setSubespecialidade}
-                disabled={subOpcoes.length === 0}
+                value={especialidade}
+                onValueChange={alterarEspecialidade}
+                disabled={grandeArea === TODOS}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione a especialidade" />
+                  <SelectValue
+                    placeholder={
+                      grandeArea === TODOS
+                        ? "Selecione uma grande área"
+                        : "Todas"
+                    }
+                  />
                 </SelectTrigger>
 
                 <SelectContent>
                   <SelectItem value={TODOS}>Todas</SelectItem>
 
-                  {subOpcoes.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
+                  {especialidades.map((especialidadeItem) => (
+                    <SelectItem
+                      key={especialidadeItem}
+                      value={especialidadeItem}
+                    >
+                      {especialidadeItem}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Tema</Label>
+
+              <Select
+                value={tema}
+                onValueChange={setTema}
+                disabled={
+                  grandeArea === TODOS || especialidade === TODOS
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      grandeArea === TODOS
+                        ? "Selecione uma grande área"
+                        : especialidade === TODOS
+                          ? "Selecione uma especialidade"
+                          : "Todos os temas"
+                    }
+                  />
+                </SelectTrigger>
+
+                <SelectContent>
+                  <SelectItem value={TODOS}>Todos</SelectItem>
+
+                  {temas.map((temaItem) => (
+                    <SelectItem key={temaItem} value={temaItem}>
+                      {temaItem}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -329,15 +519,15 @@ function QuestoesPage() {
 
               <Select value={banca} onValueChange={setBanca}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Todas" />
                 </SelectTrigger>
 
                 <SelectContent>
                   <SelectItem value={TODOS}>Todas</SelectItem>
 
-                  {bancas.map((b) => (
-                    <SelectItem key={b} value={b}>
-                      {b}
+                  {bancas.map((bancaItem) => (
+                    <SelectItem key={bancaItem} value={bancaItem}>
+                      {bancaItem}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -348,9 +538,14 @@ function QuestoesPage() {
               <Label>Ano</Label>
 
               <div className="flex flex-wrap gap-1.5">
-                <button type="button" onClick={() => setAno(TODOS)}>
+                <button
+                  type="button"
+                  onClick={() => setAno(TODOS)}
+                >
                   <Badge
-                    variant={ano === TODOS ? "default" : "outline"}
+                    variant={
+                      ano === TODOS ? "default" : "outline"
+                    }
                     className="cursor-pointer"
                   >
                     Todos
@@ -380,26 +575,35 @@ function QuestoesPage() {
               <Label>Status</Label>
 
               <div className="flex flex-wrap gap-1.5">
-                <button type="button" onClick={() => setStatus(TODOS)}>
+                <button
+                  type="button"
+                  onClick={() => setStatus(TODOS)}
+                >
                   <Badge
-                    variant={status === TODOS ? "default" : "outline"}
+                    variant={
+                      status === TODOS ? "default" : "outline"
+                    }
                     className="cursor-pointer"
                   >
                     Todas
                   </Badge>
                 </button>
 
-                {statusQuestao.map((s) => (
+                {statusQuestao.map((statusItem) => (
                   <button
-                    key={s}
+                    key={statusItem}
                     type="button"
-                    onClick={() => setStatus(s)}
+                    onClick={() => setStatus(statusItem)}
                   >
                     <Badge
-                      variant={status === s ? "default" : "outline"}
+                      variant={
+                        status === statusItem
+                          ? "default"
+                          : "outline"
+                      }
                       className="cursor-pointer"
                     >
-                      {s}
+                      {statusItem}
                     </Badge>
                   </button>
                 ))}
@@ -443,8 +647,8 @@ function QuestoesPage() {
           ) : filtradas.length === 0 ? (
             <Card>
               <CardContent className="p-12 text-center text-sm text-muted-foreground">
-                Nenhuma questão encontrada com esses filtros. Tente limpar
-                alguns critérios.
+                Nenhuma questão encontrada com esses filtros.
+                Tente limpar alguns critérios.
               </CardContent>
             </Card>
           ) : (

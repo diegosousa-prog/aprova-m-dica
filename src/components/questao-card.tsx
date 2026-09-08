@@ -101,7 +101,6 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{questao.id}</Badge>
           <Badge className="bg-primary text-primary-foreground">{questao.especialidade}</Badge>
-          <Badge variant="outline">{questao.subespecialidade}</Badge>
           <Badge variant="outline">{questao.banca}</Badge>
           <Badge variant="outline">{questao.ano}</Badge>
           <Badge
