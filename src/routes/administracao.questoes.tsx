@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Save } from "lucide-react";
+import { FileUp, Loader2, Save } from "lucide-react";
+import Papa from "papaparse";
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -25,8 +26,6 @@ import { supabase } from "@/lib/supabase";
 export const Route = createFileRoute("/administracao/questoes")({
   component: AdministracaoQuestoesPage,
 });
-
-const TODOS = "todos";
 
 const grandeAreas = [
   "Clínica Médica",
@@ -113,6 +112,23 @@ const especialidadesPorGrandeArea: Record<string, string[]> = {
   ],
 };
 
+type LinhaCSV = {
+  grande_area?: string;
+  especialidade?: string;
+  tema?: string;
+  banca?: string;
+  ano?: string;
+  dificuldade?: string;
+  enunciado?: string;
+  A?: string;
+  B?: string;
+  C?: string;
+  D?: string;
+  E?: string;
+  correta?: string;
+  explicacao?: string;
+};
+
 function AdministracaoQuestoesPage() {
   const [grandeArea, setGrandeArea] = useState("");
   const [especialidade, setEspecialidade] = useState("");
@@ -136,6 +152,8 @@ function AdministracaoQuestoesPage() {
   const [explicacao, setExplicacao] = useState("");
 
   const [salvando, setSalvando] = useState(false);
+  const [importando, setImportando] = useState(false);
+
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -226,12 +244,189 @@ function AdministracaoQuestoesPage() {
     limparFormulario();
   }
 
+  async function importarCSV(
+    evento: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const arquivo = evento.target.files?.[0];
+
+    if (!arquivo) {
+      return;
+    }
+
+    setMensagem(null);
+    setErro(null);
+    setImportando(true);
+
+    Papa.parse<LinhaCSV>(arquivo, {
+      header: true,
+      skipEmptyLines: true,
+      delimiter: ";",
+
+      complete: async (resultado) => {
+        try {
+          if (resultado.errors.length > 0) {
+            const erroPapa = resultado.errors[0];
+
+            throw new Error(
+              `Erro no CSV na linha ${(erroPapa.row ?? 0) + 2}: ${erroPapa.message}`,
+            );
+          }
+
+          if (resultado.data.length === 0) {
+            throw new Error("O arquivo CSV não contém questões.");
+          }
+
+          const questoes = resultado.data.map((linha, index) => {
+            const correta = (linha.correta ?? "")
+              .trim()
+              .toUpperCase();
+
+            const dificuldadeCSV = (
+              linha.dificuldade ?? ""
+            ).trim();
+
+            if (
+              !linha.grande_area?.trim() ||
+              !linha.especialidade?.trim() ||
+              !linha.enunciado?.trim() ||
+              !linha.A?.trim() ||
+              !linha.B?.trim() ||
+              !linha.C?.trim() ||
+              !linha.D?.trim() ||
+              !correta ||
+              !["A", "B", "C", "D", "E"].includes(correta)
+            ) {
+              throw new Error(
+                `Dados obrigatórios inválidos na linha ${index + 2}.`,
+              );
+            }
+
+            if (
+              !["Fácil", "Média", "Difícil"].includes(
+                dificuldadeCSV,
+              )
+            ) {
+              throw new Error(
+                `Dificuldade inválida na linha ${index + 2}. Use Fácil, Média ou Difícil.`,
+              );
+            }
+
+            return {
+              grande_area: linha.grande_area.trim(),
+              especialidade: linha.especialidade.trim(),
+              tema: linha.tema?.trim() || null,
+              instituicao: linha.banca?.trim() || null,
+              ano: linha.ano?.trim()
+                ? Number(linha.ano)
+                : null,
+              dificuldade: dificuldadeCSV,
+              enunciado: linha.enunciado.trim(),
+              alternativas: {
+                A: linha.A.trim(),
+                B: linha.B.trim(),
+                C: linha.C.trim(),
+                D: linha.D.trim(),
+                ...(linha.E?.trim()
+                  ? { E: linha.E.trim() }
+                  : {}),
+              },
+              resposta_correta: correta,
+              explicacao: linha.explicacao?.trim() || null,
+            };
+          });
+
+          const { error } = await supabase
+            .from("questions")
+            .insert(questoes);
+
+          if (error) {
+            console.error(
+              "ERRO AO IMPORTAR QUESTÕES:",
+              error,
+            );
+
+            throw new Error(error.message);
+          }
+
+          setMensagem(
+  questoes.length === 1
+    ? "1 questão importada com sucesso!"
+    : `${questoes.length} questões importadas com sucesso!`,
+);
+        } catch (errorImportacao) {
+          console.error(
+            "ERRO NA IMPORTAÇÃO CSV:",
+            errorImportacao,
+          );
+
+          setErro(
+            errorImportacao instanceof Error
+              ? errorImportacao.message
+              : "Não foi possível importar o CSV.",
+          );
+        } finally {
+          setImportando(false);
+          evento.target.value = "";
+        }
+      },
+
+      error: (error) => {
+        console.error("ERRO AO LER CSV:", error);
+
+        setErro(
+          `Não foi possível ler o arquivo CSV: ${error.message}`,
+        );
+
+        setImportando(false);
+        evento.target.value = "";
+      },
+    });
+  }
+
   return (
     <AppShell
       titulo="Administração de questões"
       descricao="Cadastre novas questões no banco do QBMed."
     >
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Importar questões por CSV</CardTitle>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-border bg-muted/40 p-4">
+              <p className="text-sm font-medium">
+                Formato esperado
+              </p>
+
+              <p className="mt-2 text-xs text-muted-foreground">
+                grande_area;especialidade;tema;banca;ano;dificuldade;enunciado;A;B;C;D;E;correta;explicacao
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+  <label className="inline-flex cursor-pointer items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
+    {importando ? (
+      <Loader2 className="mr-2 size-4 animate-spin" />
+    ) : (
+      <FileUp className="mr-2 size-4" />
+    )}
+
+    {importando ? "Importando..." : "Selecionar CSV"}
+
+    <input
+      type="file"
+      accept=".csv,text/csv"
+      onChange={(evento) => void importarCSV(evento)}
+      disabled={importando}
+      className="hidden"
+    />
+  </label>
+</div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Nova questão</CardTitle>
