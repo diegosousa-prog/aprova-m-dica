@@ -1,6 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { FileUp, Loader2, Save } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  FileUp,
+  Loader2,
+  Pencil,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import Papa from "papaparse";
 
 import { AppShell } from "@/components/app-shell";
@@ -26,6 +36,8 @@ import { supabase } from "@/lib/supabase";
 export const Route = createFileRoute("/administracao/questoes")({
   component: AdministracaoQuestoesPage,
 });
+
+const QUESTOES_POR_PAGINA = 20;
 
 const grandeAreas = [
   "Clínica Médica",
@@ -129,6 +141,37 @@ type LinhaCSV = {
   explicacao?: string;
 };
 
+type QuestaoAdmin = {
+  id: number;
+  grande_area: string;
+  especialidade: string;
+  tema: string | null;
+  instituicao: string | null;
+  ano: number | null;
+  dificuldade: string | null;
+  enunciado: string;
+};
+
+type QuestaoCompleta = {
+  id: number;
+  grande_area: string;
+  especialidade: string;
+  tema: string | null;
+  instituicao: string | null;
+  ano: number | null;
+  dificuldade: string | null;
+  enunciado: string;
+  alternativas: {
+    A?: string;
+    B?: string;
+    C?: string;
+    D?: string;
+    E?: string;
+  };
+  resposta_correta: string;
+  explicacao: string | null;
+};
+
 function AdministracaoQuestoesPage() {
   const [grandeArea, setGrandeArea] = useState("");
   const [especialidade, setEspecialidade] = useState("");
@@ -153,17 +196,65 @@ function AdministracaoQuestoesPage() {
 
   const [salvando, setSalvando] = useState(false);
   const [importando, setImportando] = useState(false);
+  const [carregandoEdicao, setCarregandoEdicao] = useState(false);
+  const [excluindoId, setExcluindoId] = useState<number | null>(null);
+
+  const [questoes, setQuestoes] = useState<QuestaoAdmin[]>([]);
+  const [carregandoQuestoes, setCarregandoQuestoes] = useState(false);
+
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [totalQuestoes, setTotalQuestoes] = useState(0);
 
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+
+  const [editandoId, setEditandoId] = useState<number | null>(null);
 
   const especialidades = useMemo(() => {
     return especialidadesPorGrandeArea[grandeArea] ?? [];
   }, [grandeArea]);
 
+  const totalPaginas = Math.ceil(
+    totalQuestoes / QUESTOES_POR_PAGINA,
+  );
+
   useEffect(() => {
-    setEspecialidade("");
-  }, [grandeArea]);
+    if (!editandoId) {
+      setEspecialidade("");
+    }
+  }, [grandeArea, editandoId]);
+
+  async function carregarQuestoes(pagina = 1) {
+    setCarregandoQuestoes(true);
+
+    const inicio = (pagina - 1) * QUESTOES_POR_PAGINA;
+    const fim = inicio + QUESTOES_POR_PAGINA - 1;
+
+    const { data, error, count } = await supabase
+      .from("questions")
+      .select(
+        "id, grande_area, especialidade, tema, instituicao, ano, dificuldade, enunciado",
+        { count: "exact" },
+      )
+      .order("id", { ascending: false })
+      .range(inicio, fim);
+
+    if (error) {
+      console.error("ERRO AO CARREGAR QUESTÕES:", error);
+      setErro("Não foi possível carregar as questões.");
+      setCarregandoQuestoes(false);
+      return;
+    }
+
+    setQuestoes(data ?? []);
+    setTotalQuestoes(count ?? 0);
+    setPaginaAtual(pagina);
+    setCarregandoQuestoes(false);
+  }
+
+  useEffect(() => {
+    void carregarQuestoes(1);
+  }, []);
 
   function alterarAlternativa(
     letra: keyof typeof alternativas,
@@ -194,6 +285,104 @@ function AdministracaoQuestoesPage() {
 
     setRespostaCorreta("");
     setExplicacao("");
+    setEditandoId(null);
+  }
+
+  async function editarQuestao(id: number) {
+    setMensagem(null);
+    setErro(null);
+    setCarregandoEdicao(true);
+
+    const { data, error } = await supabase
+      .from("questions")
+      .select(
+        "id, grande_area, especialidade, tema, instituicao, ano, dificuldade, enunciado, alternativas, resposta_correta, explicacao",
+      )
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      console.error("ERRO AO CARREGAR QUESTÃO:", error);
+      setErro("Não foi possível carregar a questão para edição.");
+      setCarregandoEdicao(false);
+      return;
+    }
+
+    const questao = data as QuestaoCompleta;
+
+    setGrandeArea(questao.grande_area);
+    setEspecialidade(questao.especialidade);
+    setTema(questao.tema ?? "");
+    setBanca(questao.instituicao ?? "");
+    setAno(questao.ano?.toString() ?? "");
+    setDificuldade(questao.dificuldade ?? "");
+    setEnunciado(questao.enunciado);
+
+    setAlternativas({
+      A: questao.alternativas?.A ?? "",
+      B: questao.alternativas?.B ?? "",
+      C: questao.alternativas?.C ?? "",
+      D: questao.alternativas?.D ?? "",
+      E: questao.alternativas?.E ?? "",
+    });
+
+    setRespostaCorreta(questao.resposta_correta);
+    setExplicacao(questao.explicacao ?? "");
+
+    setEditandoId(id);
+    setCarregandoEdicao(false);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  async function excluirQuestao(id: number) {
+    const confirmar = window.confirm(
+      `Tem certeza que deseja excluir a questão #${id}? Essa ação não pode ser desfeita.`,
+    );
+
+    if (!confirmar) {
+      return;
+    }
+
+    setMensagem(null);
+    setErro(null);
+    setExcluindoId(id);
+
+    const { error } = await supabase
+      .from("questions")
+      .delete()
+      .eq("id", id);
+
+    setExcluindoId(null);
+
+    if (error) {
+      console.error("ERRO AO EXCLUIR QUESTÃO:", error);
+      setErro(error.message);
+      return;
+    }
+
+    if (editandoId === id) {
+      limparFormulario();
+    }
+
+    setMensagem(`Questão #${id} excluída com sucesso!`);
+
+    const novoTotal = totalQuestoes - 1;
+    const novasPaginas = Math.ceil(
+      novoTotal / QUESTOES_POR_PAGINA,
+    );
+
+    const paginaParaCarregar =
+      paginaAtual > novasPaginas && novasPaginas > 0
+        ? novasPaginas
+        : paginaAtual;
+
+    await carregarQuestoes(
+      paginaParaCarregar > 0 ? paginaParaCarregar : 1,
+    );
   }
 
   async function salvarQuestao() {
@@ -219,7 +408,7 @@ function AdministracaoQuestoesPage() {
 
     setSalvando(true);
 
-    const { error } = await supabase.from("questions").insert({
+    const dadosQuestao = {
       grande_area: grandeArea,
       especialidade,
       tema: tema || null,
@@ -230,7 +419,34 @@ function AdministracaoQuestoesPage() {
       alternativas,
       resposta_correta: respostaCorreta,
       explicacao: explicacao || null,
-    });
+    };
+
+    if (editandoId !== null) {
+      const { error } = await supabase
+        .from("questions")
+        .update(dadosQuestao)
+        .eq("id", editandoId);
+
+      setSalvando(false);
+
+      if (error) {
+        console.error("ERRO AO EDITAR QUESTÃO:", error);
+        setErro(error.message);
+        return;
+      }
+
+      setMensagem(
+        `Questão #${editandoId} atualizada com sucesso!`,
+      );
+
+      limparFormulario();
+      await carregarQuestoes(paginaAtual);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("questions")
+      .insert(dadosQuestao);
 
     setSalvando(false);
 
@@ -242,6 +458,14 @@ function AdministracaoQuestoesPage() {
 
     setMensagem("Questão cadastrada com sucesso!");
     limparFormulario();
+
+    await carregarQuestoes(1);
+  }
+
+  function cancelarEdicao() {
+    limparFormulario();
+    setMensagem(null);
+    setErro(null);
   }
 
   async function importarCSV(
@@ -276,68 +500,107 @@ function AdministracaoQuestoesPage() {
             throw new Error("O arquivo CSV não contém questões.");
           }
 
-          const questoes = resultado.data.map((linha, index) => {
-            const correta = (linha.correta ?? "")
-              .trim()
-              .toUpperCase();
+          const questoesImportadas = resultado.data.map(
+            (linha, index) => {
+              const correta = (linha.correta ?? "")
+                .trim()
+                .toUpperCase();
 
-            const dificuldadeCSV = (
-              linha.dificuldade ?? ""
-            ).trim();
+              const dificuldadeCSV = (
+                linha.dificuldade ?? ""
+              ).trim();
 
-            if (
-              !linha.grande_area?.trim() ||
-              !linha.especialidade?.trim() ||
-              !linha.enunciado?.trim() ||
-              !linha.A?.trim() ||
-              !linha.B?.trim() ||
-              !linha.C?.trim() ||
-              !linha.D?.trim() ||
-              !correta ||
-              !["A", "B", "C", "D", "E"].includes(correta)
-            ) {
-              throw new Error(
-                `Dados obrigatórios inválidos na linha ${index + 2}.`,
-              );
-            }
+              const anoCSV = (linha.ano ?? "").trim();
 
-            if (
-              !["Fácil", "Média", "Difícil"].includes(
-                dificuldadeCSV,
-              )
-            ) {
-              throw new Error(
-                `Dificuldade inválida na linha ${index + 2}. Use Fácil, Média ou Difícil.`,
-              );
-            }
+              if (anoCSV && !/^\d{4}$/.test(anoCSV)) {
+                throw new Error(
+                  `Ano inválido na linha ${index + 2}: "${anoCSV}". Use um ano com 4 dígitos.`,
+                );
+              }
 
-            return {
-              grande_area: linha.grande_area.trim(),
-              especialidade: linha.especialidade.trim(),
-              tema: linha.tema?.trim() || null,
-              instituicao: linha.banca?.trim() || null,
-              ano: linha.ano?.trim()
-                ? Number(linha.ano)
-                : null,
-              dificuldade: dificuldadeCSV,
-              enunciado: linha.enunciado.trim(),
-              alternativas: {
-                A: linha.A.trim(),
-                B: linha.B.trim(),
-                C: linha.C.trim(),
-                D: linha.D.trim(),
-                ...(linha.E?.trim()
-                  ? { E: linha.E.trim() }
-                  : {}),
-              },
-              resposta_correta: correta,
-              explicacao: linha.explicacao?.trim() || null,
-            };
-          });
+              const grandeAreaCSV = (
+                linha.grande_area ?? ""
+              ).trim();
+
+              const especialidadeCSV = (
+                linha.especialidade ?? ""
+              ).trim();
+
+              const especialidadesValidas =
+                especialidadesPorGrandeArea[grandeAreaCSV] ??
+                [];
+
+              if (!grandeAreas.includes(grandeAreaCSV)) {
+                throw new Error(
+                  `Grande Área inválida na linha ${index + 2}: "${grandeAreaCSV}".`,
+                );
+              }
+
+              if (
+                !especialidadesValidas.includes(
+                  especialidadeCSV,
+                )
+              ) {
+                throw new Error(
+                  `Especialidade inválida na linha ${index + 2}: "${especialidadeCSV}" não pertence à Grande Área "${grandeAreaCSV}".`,
+                );
+              }
+
+              if (
+                !linha.grande_area?.trim() ||
+                !linha.especialidade?.trim() ||
+                !linha.enunciado?.trim() ||
+                !linha.A?.trim() ||
+                !linha.B?.trim() ||
+                !linha.C?.trim() ||
+                !linha.D?.trim() ||
+                !correta ||
+                !["A", "B", "C", "D", "E"].includes(
+                  correta,
+                )
+              ) {
+                throw new Error(
+                  `Dados obrigatórios inválidos na linha ${index + 2}.`,
+                );
+              }
+
+              if (
+                !["Fácil", "Média", "Difícil"].includes(
+                  dificuldadeCSV,
+                )
+              ) {
+                throw new Error(
+                  `Dificuldade inválida na linha ${index + 2}. Use Fácil, Média ou Difícil.`,
+                );
+              }
+
+              return {
+                grande_area: grandeAreaCSV,
+                especialidade: especialidadeCSV,
+                tema: linha.tema?.trim() || null,
+                instituicao: linha.banca?.trim() || null,
+                ano: anoCSV ? Number(anoCSV) : null,
+                dificuldade: dificuldadeCSV,
+                enunciado: linha.enunciado.trim(),
+                alternativas: {
+                  A: linha.A.trim(),
+                  B: linha.B.trim(),
+                  C: linha.C.trim(),
+                  D: linha.D.trim(),
+                  ...(linha.E?.trim()
+                    ? { E: linha.E.trim() }
+                    : {}),
+                },
+                resposta_correta: correta,
+                explicacao:
+                  linha.explicacao?.trim() || null,
+              };
+            },
+          );
 
           const { error } = await supabase
             .from("questions")
-            .insert(questoes);
+            .insert(questoesImportadas);
 
           if (error) {
             console.error(
@@ -349,10 +612,12 @@ function AdministracaoQuestoesPage() {
           }
 
           setMensagem(
-  questoes.length === 1
-    ? "1 questão importada com sucesso!"
-    : `${questoes.length} questões importadas com sucesso!`,
-);
+            questoesImportadas.length === 1
+              ? "1 questão importada com sucesso!"
+              : `${questoesImportadas.length} questões importadas com sucesso!`,
+          );
+
+          await carregarQuestoes(1);
         } catch (errorImportacao) {
           console.error(
             "ERRO NA IMPORTAÇÃO CSV:",
@@ -386,9 +651,9 @@ function AdministracaoQuestoesPage() {
   return (
     <AppShell
       titulo="Administração de questões"
-      descricao="Cadastre novas questões no banco do QBMed."
+      descricao="Cadastre e gerencie as questões do banco do QBMed."
     >
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Importar questões por CSV</CardTitle>
@@ -406,30 +671,38 @@ function AdministracaoQuestoesPage() {
             </div>
 
             <div className="flex items-center gap-3">
-  <label className="inline-flex cursor-pointer items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
-    {importando ? (
-      <Loader2 className="mr-2 size-4 animate-spin" />
-    ) : (
-      <FileUp className="mr-2 size-4" />
-    )}
+              <label className="inline-flex cursor-pointer items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
+                {importando ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <FileUp className="mr-2 size-4" />
+                )}
 
-    {importando ? "Importando..." : "Selecionar CSV"}
+                {importando
+                  ? "Importando..."
+                  : "Selecionar CSV"}
 
-    <input
-      type="file"
-      accept=".csv,text/csv"
-      onChange={(evento) => void importarCSV(evento)}
-      disabled={importando}
-      className="hidden"
-    />
-  </label>
-</div>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(evento) =>
+                    void importarCSV(evento)
+                  }
+                  disabled={importando}
+                  className="hidden"
+                />
+              </label>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Nova questão</CardTitle>
+            <CardTitle>
+              {editandoId !== null
+                ? `Editar questão #${editandoId}`
+                : "Nova questão"}
+            </CardTitle>
           </CardHeader>
 
           <CardContent className="space-y-6">
@@ -520,9 +793,17 @@ function AdministracaoQuestoesPage() {
                   </SelectTrigger>
 
                   <SelectContent>
-                    <SelectItem value="Fácil">Fácil</SelectItem>
-                    <SelectItem value="Média">Média</SelectItem>
-                    <SelectItem value="Difícil">Difícil</SelectItem>
+                    <SelectItem value="Fácil">
+                      Fácil
+                    </SelectItem>
+
+                    <SelectItem value="Média">
+                      Média
+                    </SelectItem>
+
+                    <SelectItem value="Difícil">
+                      Difícil
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -542,21 +823,29 @@ function AdministracaoQuestoesPage() {
             <div className="space-y-4">
               <Label>Alternativas *</Label>
 
-              {(["A", "B", "C", "D", "E"] as const).map((letra) => (
-                <div key={letra} className="flex items-center gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted font-semibold">
-                    {letra}
-                  </div>
+              {(["A", "B", "C", "D", "E"] as const).map(
+                (letra) => (
+                  <div
+                    key={letra}
+                    className="flex items-center gap-3"
+                  >
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted font-semibold">
+                      {letra}
+                    </div>
 
-                  <Input
-                    value={alternativas[letra]}
-                    onChange={(e) =>
-                      alterarAlternativa(letra, e.target.value)
-                    }
-                    placeholder={`Alternativa ${letra}`}
-                  />
-                </div>
-              ))}
+                    <Input
+                      value={alternativas[letra]}
+                      onChange={(e) =>
+                        alterarAlternativa(
+                          letra,
+                          e.target.value,
+                        )
+                      }
+                      placeholder={`Alternativa ${letra}`}
+                    />
+                  </div>
+                ),
+              )}
             </div>
 
             <div className="grid gap-2">
@@ -573,7 +862,10 @@ function AdministracaoQuestoesPage() {
                 <SelectContent>
                   {(["A", "B", "C", "D", "E"] as const).map(
                     (letra) => (
-                      <SelectItem key={letra} value={letra}>
+                      <SelectItem
+                        key={letra}
+                        value={letra}
+                      >
                         Alternativa {letra}
                       </SelectItem>
                     ),
@@ -605,20 +897,259 @@ function AdministracaoQuestoesPage() {
               </div>
             ) : null}
 
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {editandoId !== null ? (
+                <Button
+                  variant="outline"
+                  onClick={cancelarEdicao}
+                  disabled={salvando}
+                >
+                  <X className="mr-2 size-4" />
+                  Cancelar
+                </Button>
+              ) : null}
+
               <Button
                 onClick={() => void salvarQuestao()}
-                disabled={salvando}
+                disabled={salvando || carregandoEdicao}
               >
                 {salvando ? (
                   <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : editandoId !== null ? (
+                  <Check className="mr-2 size-4" />
                 ) : (
                   <Save className="mr-2 size-4" />
                 )}
 
-                {salvando ? "Salvando..." : "Salvar questão"}
+                {salvando
+                  ? "Salvando..."
+                  : editandoId !== null
+                    ? "Salvar alterações"
+                    : "Salvar questão"}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Gerenciar questões</CardTitle>
+
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {totalQuestoes}{" "}
+                  {totalQuestoes === 1
+                    ? "questão cadastrada"
+                    : "questões cadastradas"}
+                </p>
+              </div>
+
+              <div className="text-sm text-muted-foreground">
+                Página {totalPaginas > 0 ? paginaAtual : 0} de{" "}
+                {totalPaginas}
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            {carregandoQuestoes ? (
+              <div className="flex min-h-40 items-center justify-center">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : questoes.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                Nenhuma questão cadastrada.
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full min-w-[1100px] text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="px-4 py-3 text-left font-medium">
+                          ID
+                        </th>
+
+                        <th className="px-4 py-3 text-left font-medium">
+                          Grande Área
+                        </th>
+
+                        <th className="px-4 py-3 text-left font-medium">
+                          Especialidade
+                        </th>
+
+                        <th className="px-4 py-3 text-left font-medium">
+                          Tema
+                        </th>
+
+                        <th className="px-4 py-3 text-left font-medium">
+                          Banca
+                        </th>
+
+                        <th className="px-4 py-3 text-left font-medium">
+                          Ano
+                        </th>
+
+                        <th className="px-4 py-3 text-left font-medium">
+                          Dificuldade
+                        </th>
+
+                        <th className="px-4 py-3 text-left font-medium">
+                          Enunciado
+                        </th>
+
+                        <th className="px-4 py-3 text-right font-medium">
+                          Ações
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {questoes.map((questao) => (
+                        <tr
+                          key={questao.id}
+                          className="border-b last:border-0"
+                        >
+                          <td className="px-4 py-3 font-medium">
+                            #{questao.id}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {questao.grande_area}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {questao.especialidade}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {questao.tema || "—"}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {questao.instituicao || "—"}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {questao.ano || "—"}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {questao.dificuldade || "—"}
+                          </td>
+
+                          <td className="max-w-md px-4 py-3">
+                            <p className="line-clamp-2">
+                              {questao.enunciado}
+                            </p>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  void editarQuestao(
+                                    questao.id,
+                                  )
+                                }
+                                disabled={
+                                  carregandoEdicao ||
+                                  salvando ||
+                                  excluindoId !== null
+                                }
+                              >
+                                {carregandoEdicao ? (
+                                  <Loader2 className="mr-2 size-4 animate-spin" />
+                                ) : (
+                                  <Pencil className="mr-2 size-4" />
+                                )}
+                                Editar
+                              </Button>
+
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() =>
+                                  void excluirQuestao(
+                                    questao.id,
+                                  )
+                                }
+                                disabled={
+                                  excluindoId !== null ||
+                                  carregandoEdicao ||
+                                  salvando
+                                }
+                              >
+                                {excluindoId === questao.id ? (
+                                  <Loader2 className="mr-2 size-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="mr-2 size-4" />
+                                )}
+                                Excluir
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-4">
+                  <p className="text-sm text-muted-foreground">
+                    Mostrando{" "}
+                    {(paginaAtual - 1) *
+                      QUESTOES_POR_PAGINA +
+                      1}{" "}
+                    até{" "}
+                    {Math.min(
+                      paginaAtual * QUESTOES_POR_PAGINA,
+                      totalQuestoes,
+                    )}{" "}
+                    de {totalQuestoes}
+                  </p>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={
+                        paginaAtual === 1 ||
+                        carregandoQuestoes
+                      }
+                      onClick={() =>
+                        void carregarQuestoes(
+                          paginaAtual - 1,
+                        )
+                      }
+                    >
+                      <ChevronLeft className="mr-1 size-4" />
+                      Anterior
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={
+                        paginaAtual >= totalPaginas ||
+                        carregandoQuestoes
+                      }
+                      onClick={() =>
+                        void carregarQuestoes(
+                          paginaAtual + 1,
+                        )
+                      }
+                    >
+                      Próxima
+                      <ChevronRight className="ml-1 size-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
