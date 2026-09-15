@@ -1,9 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckCircle2, Flame, Target, TrendingUp } from "lucide-react";
 import {
-  Bar,
-  BarChart,
+  CheckCircle2,
+  Flame,
+  Settings,
+  Target,
+  TrendingUp,
+} from "lucide-react";
+import {
   CartesianGrid,
   Line,
   LineChart,
@@ -24,12 +28,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import {
-  evolucaoMensal,
-  progressoSemanal,
-  questaoDoDia,
-  simulados,
-} from "@/data/mock";
+import { questaoDoDia, simulados } from "@/data/mock";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/dashboard")({
@@ -67,6 +66,18 @@ type Resposta = {
   respondida_em: string;
 };
 
+type AproveitamentoDia = {
+  dia: string;
+  aproveitamento: number;
+  questoes: number;
+};
+
+type AproveitamentoMes = {
+  mes: string;
+  aproveitamento: number;
+  questoes: number;
+};
+
 function Dashboard() {
   const [carregando, setCarregando] = useState(true);
   const [totalQuestoes, setTotalQuestoes] = useState(0);
@@ -74,6 +85,11 @@ function Dashboard() {
   const [questoesSemana, setQuestoesSemana] = useState(0);
   const [streak, setStreak] = useState(0);
   const [recordeStreak, setRecordeStreak] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [aproveitamentoSemanal, setAproveitamentoSemanal] =
+    useState<AproveitamentoDia[]>([]);
+  const [aproveitamentoMensal, setAproveitamentoMensal] =
+    useState<AproveitamentoMes[]>([]);
 
   useEffect(() => {
     async function carregarDados() {
@@ -87,6 +103,29 @@ function Dashboard() {
         setCarregando(false);
         return;
       }
+
+      // ==================================================
+      // VERIFICAR SE O USUÁRIO É ADMINISTRADOR
+      // ==================================================
+
+      const { data: perfil, error: erroPerfil } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (erroPerfil) {
+        console.error(
+          "ERRO AO VERIFICAR PERMISSÃO DE ADMIN:",
+          erroPerfil,
+        );
+      }
+
+      setIsAdmin(perfil?.is_admin === true);
+
+      // ==================================================
+      // CARREGAR RESPOSTAS
+      // ==================================================
 
       const { data, error } = await supabase
         .from("question_answers")
@@ -130,14 +169,151 @@ function Dashboard() {
       limiteSemana.setDate(limiteSemana.getDate() - 6);
 
       const respostasSemana = respostas.filter((resposta) => {
-        const dataResposta = new Date(
-          resposta.respondida_em,
-        );
+        const dataResposta = new Date(resposta.respondida_em);
 
         return dataResposta >= limiteSemana;
       });
 
       setQuestoesSemana(respostasSemana.length);
+
+      // ==================================================
+      // APROVEITAMENTO DOS ÚLTIMOS 7 DIAS
+      // ==================================================
+
+      const nomesDias = [
+        "Dom",
+        "Seg",
+        "Ter",
+        "Qua",
+        "Qui",
+        "Sex",
+        "Sáb",
+      ];
+
+      const dadosSemana: AproveitamentoDia[] = [];
+
+      for (let i = 0; i < 7; i++) {
+        const dataDia = new Date(limiteSemana);
+
+        dataDia.setDate(limiteSemana.getDate() + i);
+
+        const inicioDia = new Date(dataDia);
+
+        inicioDia.setHours(0, 0, 0, 0);
+
+        const fimDia = new Date(dataDia);
+
+        fimDia.setHours(23, 59, 59, 999);
+
+        const respostasDoDia = respostas.filter((resposta) => {
+          const dataResposta = new Date(resposta.respondida_em);
+
+          return (
+            dataResposta >= inicioDia &&
+            dataResposta <= fimDia
+          );
+        });
+
+        const quantidade = respostasDoDia.length;
+
+        const acertosDoDia = respostasDoDia.filter(
+          (resposta) => resposta.acertou,
+        ).length;
+
+        const aproveitamento =
+          quantidade > 0
+            ? Math.round(
+                (acertosDoDia / quantidade) * 100,
+              )
+            : 0;
+
+        dadosSemana.push({
+          dia: nomesDias[dataDia.getDay()] ?? "",
+          aproveitamento,
+          questoes: quantidade,
+        });
+      }
+
+      setAproveitamentoSemanal(dadosSemana);
+
+      // ==================================================
+      // APROVEITAMENTO DOS ÚLTIMOS 6 MESES
+      // ==================================================
+
+      const nomesMeses = [
+        "Jan",
+        "Fev",
+        "Mar",
+        "Abr",
+        "Mai",
+        "Jun",
+        "Jul",
+        "Ago",
+        "Set",
+        "Out",
+        "Nov",
+        "Dez",
+      ];
+
+      const dadosMensais: AproveitamentoMes[] = [];
+
+      const inicioMesAtual = new Date(
+        agora.getFullYear(),
+        agora.getMonth(),
+        1,
+      );
+
+      for (let i = 5; i >= 0; i--) {
+        const dataMes = new Date(inicioMesAtual);
+
+        dataMes.setMonth(dataMes.getMonth() - i);
+
+        const inicioMes = new Date(
+          dataMes.getFullYear(),
+          dataMes.getMonth(),
+          1,
+        );
+
+        const fimMes = new Date(
+          dataMes.getFullYear(),
+          dataMes.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999,
+        );
+
+        const respostasDoMes = respostas.filter((resposta) => {
+          const dataResposta = new Date(resposta.respondida_em);
+
+          return (
+            dataResposta >= inicioMes &&
+            dataResposta <= fimMes
+          );
+        });
+
+        const quantidade = respostasDoMes.length;
+
+        const acertosDoMes = respostasDoMes.filter(
+          (resposta) => resposta.acertou,
+        ).length;
+
+        const aproveitamento =
+          quantidade > 0
+            ? Math.round(
+                (acertosDoMes / quantidade) * 100,
+              )
+            : 0;
+
+        dadosMensais.push({
+          mes: nomesMeses[dataMes.getMonth()] ?? "",
+          aproveitamento,
+          questoes: quantidade,
+        });
+      }
+
+      setAproveitamentoMensal(dadosMensais);
 
       // ==================================================
       // DIAS COM ATIVIDADE
@@ -176,8 +352,6 @@ function Dashboard() {
 
       let diaAtual = new Date(hoje);
 
-      // Se não estudou hoje, mas estudou ontem,
-      // o streak começa contando a partir de ontem.
       if (!diasComAtividade.has(transformarData(diaAtual))) {
         if (diasComAtividade.has(transformarData(ontem))) {
           diaAtual = ontem;
@@ -282,6 +456,38 @@ function Dashboard() {
       titulo="Olá! 👋"
       descricao="Veja seu resumo de estudos de hoje."
     >
+      {/* ==================================================
+          ÁREA ADMINISTRATIVA
+          ================================================== */}
+
+      {isAdmin ? (
+        <Card className="mb-6 border-primary/20 bg-primary/5">
+          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <Settings className="size-5" />
+              </div>
+
+              <div>
+                <p className="font-semibold">
+                  Área administrativa
+                </p>
+
+                <p className="text-sm text-muted-foreground">
+                  Gerencie questões e conteúdos do QBMed.
+                </p>
+              </div>
+            </div>
+
+            <Button asChild>
+              <Link to="/administracao/questoes">
+                Acessar administração
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* ==================================================
           CARDS PRINCIPAIS
           ================================================== */}
@@ -395,15 +601,20 @@ function Dashboard() {
 
       {/* ==================================================
           GRÁFICOS
-          POR ENQUANTO CONTINUAM COM DADOS MOCK
           ================================================== */}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        {/* PROGRESSO SEMANAL */}
+
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base">
               Progresso semanal
             </CardTitle>
+
+            <p className="text-sm text-muted-foreground">
+              Evolução do seu aproveitamento nos últimos 7 dias.
+            </p>
           </CardHeader>
 
           <CardContent className="h-72">
@@ -411,7 +622,7 @@ function Dashboard() {
               width="100%"
               height="100%"
             >
-              <BarChart data={progressoSemanal}>
+              <LineChart data={aproveitamentoSemanal}>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="var(--border)"
@@ -427,6 +638,8 @@ function Dashboard() {
                 <YAxis
                   stroke="var(--muted-foreground)"
                   fontSize={12}
+                  domain={[0, 100]}
+                  tickFormatter={(valor) => `${valor}%`}
                 />
 
                 <Tooltip
@@ -436,32 +649,53 @@ function Dashboard() {
                       "1px solid var(--border)",
                     borderRadius: 12,
                   }}
+                  formatter={(
+                    valor,
+                    nome,
+                    propriedades,
+                  ) => {
+                    if (nome === "Aproveitamento") {
+                      return [
+                        `${valor}%`,
+                        "Aproveitamento",
+                      ];
+                    }
+
+                    return [
+                      valor,
+                      propriedades?.payload
+                        ?.questoes
+                        ? "Questões"
+                        : nome,
+                    ];
+                  }}
                 />
 
-                <Bar
-                  dataKey="questoes"
-                  name="Questões"
-                  fill="var(--chart-2)"
-                  radius={[6, 6, 0, 0]}
+                <Line
+                  type="monotone"
+                  dataKey="aproveitamento"
+                  name="Aproveitamento"
+                  stroke="var(--chart-2)"
+                  strokeWidth={3}
+                  dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
                 />
-
-                <Bar
-                  dataKey="meta"
-                  name="Meta"
-                  fill="var(--chart-1)"
-                  radius={[6, 6, 0, 0]}
-                  opacity={0.35}
-                />
-              </BarChart>
+              </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        {/* EVOLUÇÃO MENSAL */}
 
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
               Evolução do aproveitamento
             </CardTitle>
+
+            <p className="text-sm text-muted-foreground">
+              Aproveitamento dos últimos 6 meses.
+            </p>
           </CardHeader>
 
           <CardContent className="h-72">
@@ -469,7 +703,7 @@ function Dashboard() {
               width="100%"
               height="100%"
             >
-              <LineChart data={evolucaoMensal}>
+              <LineChart data={aproveitamentoMensal}>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="var(--border)"
@@ -485,7 +719,8 @@ function Dashboard() {
                 <YAxis
                   stroke="var(--muted-foreground)"
                   fontSize={12}
-                  domain={[40, 90]}
+                  domain={[0, 100]}
+                  tickFormatter={(valor) => `${valor}%`}
                 />
 
                 <Tooltip
@@ -494,6 +729,26 @@ function Dashboard() {
                     border:
                       "1px solid var(--border)",
                     borderRadius: 12,
+                  }}
+                  formatter={(
+                    valor,
+                    nome,
+                    propriedades,
+                  ) => {
+                    if (nome === "Aproveitamento (%)") {
+                      return [
+                        `${valor}%`,
+                        "Aproveitamento",
+                      ];
+                    }
+
+                    return [
+                      valor,
+                      propriedades?.payload
+                        ?.questoes
+                        ? "Questões"
+                        : nome,
+                    ];
                   }}
                 />
 
@@ -504,6 +759,7 @@ function Dashboard() {
                   stroke="var(--chart-2)"
                   strokeWidth={3}
                   dot={{ r: 4 }}
+                  activeDot={{ r: 6 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -513,7 +769,6 @@ function Dashboard() {
 
       {/* ==================================================
           QUESTÃO DO DIA E SIMULADOS
-          POR ENQUANTO CONTINUAM COM DADOS MOCK
           ================================================== */}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
