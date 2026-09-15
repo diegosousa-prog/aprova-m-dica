@@ -612,12 +612,14 @@ function AdministracaoQuestoesPage() {
       complete: async (resultado) => {
         try {
           if (resultado.errors.length > 0) {
-            const erroPapa = resultado.errors[0];
+  const erroPapa = resultado.errors[0];
 
-            throw new Error(
-              `Erro no CSV na linha ${(erroPapa.row ?? 0) + 2}: ${erroPapa.message}`,
-            );
-          }
+  if (erroPapa) {
+    throw new Error(
+      `Erro no CSV na linha ${(erroPapa.row ?? 0) + 2}: ${erroPapa.message}`,
+    );
+  }
+}
 
           if (resultado.data.length === 0) {
             throw new Error("O arquivo CSV não contém questões.");

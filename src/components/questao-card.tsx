@@ -2,12 +2,13 @@ import {
   CheckCircle2,
   ChevronDown,
   Heart,
+  Loader2,
   MessageSquare,
   NotebookPen,
   ThumbsUp,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,7 +18,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import type { Comentario, Questao } from "@/data/mock";
+import { gerarUrlImagemB2 } from "@/lib/b2.functions";
+import type { Comentario, Questao } from "@/data/questao";
 import { useEstudo } from "@/hooks/use-estudo";
 
 export function QuestaoCard({ questao }: { questao: Questao }) {
@@ -47,39 +49,83 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
     questao.comentarios,
   );
   const [novoComentario, setNovoComentario] = useState("");
+  const [imagemUrl, setImagemUrl] = useState<string | null>(null);
+  const [carregandoImagem, setCarregandoImagem] = useState(false);
 
   const favorita = estaFavorita(questao.id);
   const acertou = respondida && selecionada === questao.correta;
 
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregarImagem() {
+      if (!questao.imagem_url) {
+        setImagemUrl(null);
+        return;
+      }
+
+      try {
+        setCarregandoImagem(true);
+
+        const resultado = await gerarUrlImagemB2({
+          data: {
+            nomeArquivo: questao.imagem_url,
+          },
+        });
+
+        if (ativo && resultado.sucesso) {
+          setImagemUrl(resultado.url);
+        }
+      } catch (erro) {
+        console.error("Erro ao carregar imagem da questão:", erro);
+
+        if (ativo) {
+          setImagemUrl(null);
+        }
+      } finally {
+        if (ativo) {
+          setCarregandoImagem(false);
+        }
+      }
+    }
+
+    carregarImagem();
+
+    return () => {
+      ativo = false;
+    };
+  }, [questao.imagem_url]);
+
   function responder() {
-  if (!selecionada) {
-    toast.warning("Selecione uma alternativa antes de responder.");
-    return;
+    if (!selecionada) {
+      toast.warning("Selecione uma alternativa antes de responder.");
+      return;
+    }
+
+    const alternativa = selecionada as Questao["correta"];
+
+    registrarResposta(questao, alternativa);
+
+    setRespondida(true);
+    setResolucaoAberta(true);
+
+    if (alternativa === questao.correta) {
+      toast.success("Resposta correta! Muito bem.");
+    } else {
+      toast.error("Resposta incorreta. Confira a resolução comentada.");
+    }
   }
-
-  const alternativa = selecionada as Questao["correta"];
-
-  registrarResposta(questao, alternativa);
-
-  setRespondida(true);
-  setResolucaoAberta(true);
-
-  if (alternativa === questao.correta) {
-    toast.success("Resposta correta! Muito bem.");
-  } else {
-    toast.error("Resposta incorreta. Confira a resolução comentada.");
-  }
-}
 
   function reiniciar() {
-  limparResposta(questao.id);
-  setRespondida(false);
-  setSelecionada(null);
-  setResolucaoAberta(false);
-}
+    limparResposta(questao.id);
+    setRespondida(false);
+    setSelecionada(null);
+    setResolucaoAberta(false);
+  }
 
   function comentar() {
     if (!novoComentario.trim()) return;
+
     setComentarios((c) => [
       {
         id: `local-${Date.now()}`,
@@ -91,6 +137,7 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
       },
       ...c,
     ]);
+
     setNovoComentario("");
     toast.success("Comentário publicado no fórum.");
   }
@@ -100,19 +147,29 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
       <CardHeader className="gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{questao.id}</Badge>
-          <Badge className="bg-primary text-primary-foreground">{questao.especialidade}</Badge>
+
+          <Badge className="bg-primary text-primary-foreground">
+            {questao.especialidade}
+          </Badge>
+
           <Badge variant="outline">{questao.banca}</Badge>
+
           <Badge variant="outline">{questao.ano}</Badge>
+
           <Badge
             variant="outline"
             className={cn(
-              questao.dificuldade === "Fácil" && "border-success text-success",
-              questao.dificuldade === "Média" && "border-warning text-warning",
-              questao.dificuldade === "Difícil" && "border-destructive text-destructive",
+              questao.dificuldade === "Fácil" &&
+                "border-success text-success",
+              questao.dificuldade === "Média" &&
+                "border-warning text-warning",
+              questao.dificuldade === "Difícil" &&
+                "border-destructive text-destructive",
             )}
           >
             {questao.dificuldade}
           </Badge>
+
           <div className="ml-auto flex gap-1">
             <Button
               variant="ghost"
@@ -123,27 +180,63 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
 
                 toast(
                   favorita
-                  ? "Removida dos favoritos"
-                  : "Adicionada aos favoritos",
+                    ? "Removida dos favoritos"
+                    : "Adicionada aos favoritos",
                 );
               }}
             >
-              <Heart className={cn("size-4", favorita && "fill-destructive text-destructive")} />
+              <Heart
+                className={cn(
+                  "size-4",
+                  favorita && "fill-destructive text-destructive",
+                )}
+              />
             </Button>
+
             <Button
               variant="ghost"
               size="icon"
               aria-label="Anotar"
               onClick={() => setAnotando((a) => !a)}
             >
-              <NotebookPen className={cn("size-4", anotando && "text-accent")} />
+              <NotebookPen
+                className={cn("size-4", anotando && "text-accent")}
+              />
             </Button>
           </div>
         </div>
-        <p className="text-base leading-relaxed text-foreground">{questao.enunciado}</p>
+
+        <p className="text-base leading-relaxed text-foreground">
+          {questao.enunciado}
+        </p>
+
+        {questao.imagem_url ? (
+          <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
+            {carregandoImagem ? (
+              <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Carregando imagem...
+              </div>
+            ) : imagemUrl ? (
+              <img
+                src={imagemUrl}
+                alt="Imagem da questão"
+                className="mx-auto max-h-[600px] w-auto max-w-full object-contain"
+              />
+            ) : (
+              <div className="flex min-h-24 items-center justify-center text-sm text-muted-foreground">
+                Não foi possível carregar a imagem.
+              </div>
+            )}
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap gap-1.5">
           {questao.tags.map((t) => (
-            <span key={t} className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+            <span
+              key={t}
+              className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground"
+            >
               #{t}
             </span>
           ))}
@@ -159,11 +252,12 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
               placeholder="Escreva sua anotação sobre esta questão..."
               rows={3}
             />
+
             <div className="mt-2 flex justify-end">
               <Button
                 size="sm"
                 onClick={() => {
-                  salvarAnotacao(questao.id, anotacao)
+                  salvarAnotacao(questao.id, anotacao);
                   toast.success("Anotação salva em Anotações.");
                   setAnotando(false);
                 }}
@@ -177,8 +271,13 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
         <div className="space-y-2">
           {questao.alternativas.map((alt) => {
             const escolhida = selecionada === alt.letra;
-            const correta = respondida && alt.letra === questao.correta;
-            const errada = respondida && escolhida && alt.letra !== questao.correta;
+            const correta =
+              respondida && alt.letra === questao.correta;
+            const errada =
+              respondida &&
+              escolhida &&
+              alt.letra !== questao.correta;
+
             return (
               <button
                 key={alt.letra}
@@ -188,25 +287,39 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
                 className={cn(
                   "flex w-full items-start gap-3 rounded-lg border p-3 text-left text-sm transition-colors",
                   "border-border hover:border-accent hover:bg-accent/5",
-                  escolhida && !respondida && "border-accent bg-accent/10",
+                  escolhida &&
+                    !respondida &&
+                    "border-accent bg-accent/10",
                   correta && "border-success bg-success/10",
-                  errada && "border-destructive bg-destructive/10",
+                  errada &&
+                    "border-destructive bg-destructive/10",
                   respondida && "cursor-default",
                 )}
               >
                 <span
                   className={cn(
                     "flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold",
-                    escolhida && !respondida && "border-accent bg-accent text-accent-foreground",
-                    correta && "border-success bg-success text-success-foreground",
-                    errada && "border-destructive bg-destructive text-destructive-foreground",
+                    escolhida &&
+                      !respondida &&
+                      "border-accent bg-accent text-accent-foreground",
+                    correta &&
+                      "border-success bg-success text-success-foreground",
+                    errada &&
+                      "border-destructive bg-destructive text-destructive-foreground",
                   )}
                 >
                   {alt.letra}
                 </span>
+
                 <span className="pt-1">{alt.texto}</span>
-                {correta ? <CheckCircle2 className="ml-auto size-5 text-success" /> : null}
-                {errada ? <XCircle className="ml-auto size-5 text-destructive" /> : null}
+
+                {correta ? (
+                  <CheckCircle2 className="ml-auto size-5 text-success" />
+                ) : null}
+
+                {errada ? (
+                  <XCircle className="ml-auto size-5 text-destructive" />
+                ) : null}
               </button>
             );
           })}
@@ -220,33 +333,52 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
               <div
                 className={cn(
                   "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold",
-                  acertou ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive",
+                  acertou
+                    ? "bg-success/10 text-success"
+                    : "bg-destructive/10 text-destructive",
                 )}
               >
-                {acertou ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
+                {acertou ? (
+                  <CheckCircle2 className="size-4" />
+                ) : (
+                  <XCircle className="size-4" />
+                )}
+
                 {acertou
                   ? "Você acertou! Gabarito " + questao.correta
                   : `Você errou. Gabarito: ${questao.correta}`}
               </div>
+
               <Button variant="outline" onClick={reiniciar}>
                 Refazer questão
               </Button>
             </>
           )}
+
           <Button
             variant="ghost"
             className="ml-auto gap-1"
             onClick={() => setResolucaoAberta((v) => !v)}
           >
             Resolução comentada
-            <ChevronDown className={cn("size-4 transition-transform", resolucaoAberta && "rotate-180")} />
+            <ChevronDown
+              className={cn(
+                "size-4 transition-transform",
+                resolucaoAberta && "rotate-180",
+              )}
+            />
           </Button>
         </div>
 
         {resolucaoAberta ? (
           <div className="rounded-lg border border-border bg-muted/50 p-4">
-            <p className="mb-1 text-sm font-semibold text-primary">Resolução</p>
-            <p className="text-sm leading-relaxed text-muted-foreground">{questao.resolucao}</p>
+            <p className="mb-1 text-sm font-semibold text-primary">
+              Resolução
+            </p>
+
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {questao.resolucao}
+            </p>
           </div>
         ) : null}
 
@@ -254,8 +386,10 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
 
         <div className="space-y-4">
           <p className="flex items-center gap-2 text-sm font-semibold">
-            <MessageSquare className="size-4 text-accent" /> Fórum de comentários ({comentarios.length})
+            <MessageSquare className="size-4 text-accent" />
+            Fórum de comentários ({comentarios.length})
           </p>
+
           <div className="flex gap-2">
             <Textarea
               value={novoComentario}
@@ -263,27 +397,44 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
               placeholder="Compartilhe seu raciocínio com outros alunos..."
               rows={2}
             />
+
             <Button onClick={comentar}>Enviar</Button>
           </div>
+
           <div className="space-y-3">
             {comentarios.map((c) => (
-              <div key={c.id} className="flex gap-3 rounded-lg border border-border p-3">
+              <div
+                key={c.id}
+                className="flex gap-3 rounded-lg border border-border p-3"
+              >
                 <Avatar className="size-8">
                   <AvatarFallback className="bg-secondary text-xs text-secondary-foreground">
                     {c.avatar}
                   </AvatarFallback>
                 </Avatar>
+
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">
-                    {c.autor} <span className="text-xs font-normal text-muted-foreground">• {c.tempo}</span>
+                    {c.autor}{" "}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      • {c.tempo}
+                    </span>
                   </p>
-                  <p className="mt-1 text-sm text-muted-foreground">{c.texto}</p>
+
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {c.texto}
+                  </p>
+
                   <button
                     type="button"
                     className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-accent"
                     onClick={() =>
                       setComentarios((list) =>
-                        list.map((x) => (x.id === c.id ? { ...x, curtidas: x.curtidas + 1 } : x)),
+                        list.map((x) =>
+                          x.id === c.id
+                            ? { ...x, curtidas: x.curtidas + 1 }
+                            : x,
+                        ),
                       )
                     }
                   >

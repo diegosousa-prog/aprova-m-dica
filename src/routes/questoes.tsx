@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/select";
 import { useEstudo } from "@/hooks/use-estudo";
 import { supabase } from "@/lib/supabase";
-import { statusQuestao, type Questao, type StatusQuestao } from "@/data/mock";
+import { statusQuestao } from "@/data/mock";
+import type { Questao } from "@/data/questao";
 
 export const Route = createFileRoute("/questoes")({
   head: () => ({
@@ -40,6 +41,12 @@ export const Route = createFileRoute("/questoes")({
 });
 
 const TODOS = "todos";
+
+type StatusQuestao =
+  | "Não respondidas"
+  | "Acertadas"
+  | "Erradas"
+  | "Favoritas";
 
 const grandeAreas = [
   "Clínica Médica",
@@ -136,6 +143,7 @@ type QuestaoSupabase = {
   prova: string | null;
   dificuldade: "Fácil" | "Média" | "Difícil" | null;
   tags: string[] | null;
+  imagem_url: string | null;
 };
 
 function transformarQuestao(q: QuestaoSupabase): Questao {
@@ -148,11 +156,11 @@ function transformarQuestao(q: QuestaoSupabase): Questao {
   ];
 
   const alternativas = letras
-    .filter((letra) => q.alternativas?.[letra])
-    .map((letra) => ({
-      letra,
-      texto: q.alternativas[letra],
-    }));
+  .filter((letra) => q.alternativas?.[letra])
+  .map((letra) => ({
+    letra,
+    texto: q.alternativas[letra] ?? "",
+  }));
 
   return {
     id: String(q.id),
@@ -167,6 +175,7 @@ function transformarQuestao(q: QuestaoSupabase): Questao {
     correta: q.resposta_correta,
     resolucao: q.explicacao ?? "",
     comentarios: [],
+    imagem_url: q.imagem_url,
   };
 }
 

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { uploadImagem } from "./b2.server";
+import { gerarUrlImagem, uploadImagem } from "./b2.server";
 
 export const uploadImagemB2 = createServerFn({ method: "POST" })
   .inputValidator(
@@ -27,5 +27,20 @@ export const uploadImagemB2 = createServerFn({ method: "POST" })
     return {
       sucesso: true,
       nomeArquivo,
+    };
+  });
+
+export const gerarUrlImagemB2 = createServerFn({ method: "GET" })
+  .inputValidator(
+    (input: {
+      nomeArquivo: string;
+    }) => input,
+  )
+  .handler(async ({ data }) => {
+    const url = await gerarUrlImagem(data.nomeArquivo);
+
+    return {
+      sucesso: true,
+      url,
     };
   });
