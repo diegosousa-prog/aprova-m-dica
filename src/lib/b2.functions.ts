@@ -10,9 +10,13 @@ export const uploadImagemB2 = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data }) => {
-    const arquivo = Uint8Array.from(
-      Buffer.from(data.arquivoBase64, "base64"),
-    );
+    const binario = atob(data.arquivoBase64);
+
+    const arquivo = new Uint8Array(binario.length);
+
+    for (let i = 0; i < binario.length; i++) {
+      arquivo[i] = binario.charCodeAt(i);
+    }
 
     const nomeArquivo = await uploadImagem(
       data.nomeArquivo,

@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileUp,
+  Image,
   Loader2,
   Pencil,
   Save,
@@ -32,12 +33,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabase";
+import { uploadImagemB2 } from "@/lib/b2.functions";
 
 export const Route = createFileRoute("/administracao/questoes")({
   component: AdministracaoQuestoesPage,
 });
 
 const QUESTOES_POR_PAGINA = 20;
+const TAMANHO_MAXIMO_IMAGEM = 5 * 1024 * 1024;
 
 const grandeAreas = [
   "Clínica Médica",
@@ -170,7 +173,50 @@ type QuestaoCompleta = {
   };
   resposta_correta: string;
   explicacao: string | null;
+  imagem_url: string | null;
 };
+
+function arquivoParaBase64(arquivo: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader();
+
+    leitor.onload = () => {
+      const resultado = leitor.result;
+
+      if (typeof resultado !== "string") {
+        reject(new Error("Não foi possível ler a imagem."));
+        return;
+      }
+
+      const base64 = resultado.split(",")[1];
+
+      if (!base64) {
+        reject(new Error("Não foi possível converter a imagem."));
+        return;
+      }
+
+      resolve(base64);
+    };
+
+    leitor.onerror = () => {
+      reject(new Error("Não foi possível ler a imagem."));
+    };
+
+    leitor.readAsDataURL(arquivo);
+  });
+}
+
+function gerarNomeImagem(arquivo: File) {
+  const extensao = arquivo.name.split(".").pop()?.toLowerCase() || "jpg";
+
+  const extensoesPermitidas = ["jpg", "jpeg", "png", "webp"];
+
+  const extensaoFinal = extensoesPermitidas.includes(extensao)
+    ? extensao
+    : "jpg";
+
+  return `questions/${crypto.randomUUID()}.${extensaoFinal}`;
+}
 
 function AdministracaoQuestoesPage() {
   const [grandeArea, setGrandeArea] = useState("");
@@ -194,13 +240,24 @@ function AdministracaoQuestoesPage() {
   const [respostaCorreta, setRespostaCorreta] = useState("");
   const [explicacao, setExplicacao] = useState("");
 
+  const [imagemArquivo, setImagemArquivo] = useState<File | null>(
+    null,
+  );
+
+  const [imagemAtual, setImagemAtual] = useState<string | null>(
+    null,
+  );
+
   const [salvando, setSalvando] = useState(false);
   const [importando, setImportando] = useState(false);
   const [carregandoEdicao, setCarregandoEdicao] = useState(false);
-  const [excluindoId, setExcluindoId] = useState<number | null>(null);
+  const [excluindoId, setExcluindoId] = useState<number | null>(
+    null,
+  );
 
   const [questoes, setQuestoes] = useState<QuestaoAdmin[]>([]);
-  const [carregandoQuestoes, setCarregandoQuestoes] = useState(false);
+  const [carregandoQuestoes, setCarregandoQuestoes] =
+    useState(false);
 
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [totalQuestoes, setTotalQuestoes] = useState(0);
@@ -266,6 +323,34 @@ function AdministracaoQuestoesPage() {
     }));
   }
 
+  function selecionarImagem(
+    evento: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const arquivo = evento.target.files?.[0] ?? null;
+
+    if (!arquivo) {
+      setImagemArquivo(null);
+      return;
+    }
+
+    if (!arquivo.type.startsWith("image/")) {
+      setErro("Selecione um arquivo de imagem válido.");
+      setImagemArquivo(null);
+      evento.target.value = "";
+      return;
+    }
+
+    if (arquivo.size > TAMANHO_MAXIMO_IMAGEM) {
+      setErro("A imagem deve ter no máximo 5 MB.");
+      setImagemArquivo(null);
+      evento.target.value = "";
+      return;
+    }
+
+    setErro(null);
+    setImagemArquivo(arquivo);
+  }
+
   function limparFormulario() {
     setGrandeArea("");
     setEspecialidade("");
@@ -285,6 +370,8 @@ function AdministracaoQuestoesPage() {
 
     setRespostaCorreta("");
     setExplicacao("");
+    setImagemArquivo(null);
+    setImagemAtual(null);
     setEditandoId(null);
   }
 
@@ -296,7 +383,7 @@ function AdministracaoQuestoesPage() {
     const { data, error } = await supabase
       .from("questions")
       .select(
-        "id, grande_area, especialidade, tema, instituicao, ano, dificuldade, enunciado, alternativas, resposta_correta, explicacao",
+        "id, grande_area, especialidade, tema, instituicao, ano, dificuldade, enunciado, alternativas, resposta_correta, explicacao, imagem_url",
       )
       .eq("id", id)
       .single();
@@ -328,6 +415,8 @@ function AdministracaoQuestoesPage() {
 
     setRespostaCorreta(questao.resposta_correta);
     setExplicacao(questao.explicacao ?? "");
+    setImagemArquivo(null);
+    setImagemAtual(questao.imagem_url);
 
     setEditandoId(id);
     setCarregandoEdicao(false);
@@ -385,6 +474,25 @@ function AdministracaoQuestoesPage() {
     );
   }
 
+  async function enviarImagemParaB2(arquivo: File) {
+    const arquivoBase64 = await arquivoParaBase64(arquivo);
+    const nomeArquivo = gerarNomeImagem(arquivo);
+
+    const resultado = await uploadImagemB2({
+      data: {
+        nomeArquivo,
+        arquivoBase64,
+        contentType: arquivo.type,
+      },
+    });
+
+    if (!resultado.sucesso) {
+      throw new Error("Não foi possível enviar a imagem.");
+    }
+
+    return resultado.nomeArquivo;
+  }
+
   async function salvarQuestao() {
     setMensagem(null);
     setErro(null);
@@ -408,58 +516,73 @@ function AdministracaoQuestoesPage() {
 
     setSalvando(true);
 
-    const dadosQuestao = {
-      grande_area: grandeArea,
-      especialidade,
-      tema: tema || null,
-      instituicao: banca || null,
-      ano: ano ? Number(ano) : null,
-      dificuldade,
-      enunciado,
-      alternativas,
-      resposta_correta: respostaCorreta,
-      explicacao: explicacao || null,
-    };
+    try {
+      let imagemUrl = imagemAtual;
 
-    if (editandoId !== null) {
-      const { error } = await supabase
-        .from("questions")
-        .update(dadosQuestao)
-        .eq("id", editandoId);
+      if (imagemArquivo) {
+        setMensagem("Enviando imagem...");
 
-      setSalvando(false);
+        imagemUrl = await enviarImagemParaB2(imagemArquivo);
+      }
 
-      if (error) {
-        console.error("ERRO AO EDITAR QUESTÃO:", error);
-        setErro(error.message);
+      const dadosQuestao = {
+        grande_area: grandeArea,
+        especialidade,
+        tema: tema || null,
+        instituicao: banca || null,
+        ano: ano ? Number(ano) : null,
+        dificuldade,
+        enunciado,
+        alternativas,
+        resposta_correta: respostaCorreta,
+        explicacao: explicacao || null,
+        imagem_url: imagemUrl,
+      };
+
+      if (editandoId !== null) {
+        const { error } = await supabase
+          .from("questions")
+          .update(dadosQuestao)
+          .eq("id", editandoId);
+
+        if (error) {
+          console.error("ERRO AO EDITAR QUESTÃO:", error);
+          throw new Error(error.message);
+        }
+
+        setMensagem(
+          `Questão #${editandoId} atualizada com sucesso!`,
+        );
+
+        limparFormulario();
+        await carregarQuestoes(paginaAtual);
         return;
       }
 
-      setMensagem(
-        `Questão #${editandoId} atualizada com sucesso!`,
-      );
+      const { error } = await supabase
+        .from("questions")
+        .insert(dadosQuestao);
 
+      if (error) {
+        console.error("ERRO AO SALVAR QUESTÃO:", error);
+        throw new Error(error.message);
+      }
+
+      setMensagem("Questão cadastrada com sucesso!");
       limparFormulario();
-      await carregarQuestoes(paginaAtual);
-      return;
+
+      await carregarQuestoes(1);
+    } catch (errorSalvar) {
+      console.error("ERRO AO SALVAR QUESTÃO:", errorSalvar);
+
+      setErro(
+        errorSalvar instanceof Error
+          ? errorSalvar.message
+          : "Não foi possível salvar a questão.",
+      );
+    } finally {
+      setSalvando(false);
     }
-
-    const { error } = await supabase
-      .from("questions")
-      .insert(dadosQuestao);
-
-    setSalvando(false);
-
-    if (error) {
-      console.error("ERRO AO SALVAR QUESTÃO:", error);
-      setErro(error.message);
-      return;
-    }
-
-    setMensagem("Questão cadastrada com sucesso!");
-    limparFormulario();
-
-    await carregarQuestoes(1);
   }
 
   function cancelarEdicao() {
@@ -883,6 +1006,49 @@ function AdministracaoQuestoesPage() {
                 placeholder="Digite a explicação da resposta..."
                 className="min-h-32"
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Imagem da questão</Label>
+
+              <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-input bg-muted/20 p-6 text-sm transition-colors hover:bg-muted/40">
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <Image className="size-8 text-muted-foreground" />
+
+                  <span className="font-medium">
+                    {imagemArquivo
+                      ? imagemArquivo.name
+                      : imagemAtual
+                        ? "Imagem atual salva"
+                        : "Selecionar imagem"}
+                  </span>
+
+                  <span className="text-xs text-muted-foreground">
+                    JPG, PNG ou WEBP — máximo 5 MB
+                  </span>
+                </div>
+
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={selecionarImagem}
+                  disabled={salvando}
+                  className="hidden"
+                />
+              </label>
+
+              {imagemArquivo ? (
+                <p className="text-xs text-muted-foreground">
+                  Nova imagem selecionada. Ela será enviada para o
+                  Backblaze B2 ao salvar a questão.
+                </p>
+              ) : imagemAtual ? (
+                <p className="text-xs text-muted-foreground">
+                  Esta questão já possui uma imagem salva. Se você
+                  selecionar outra, a nova imagem substituirá a
+                  referência atual.
+                </p>
+              ) : null}
             </div>
 
             {erro ? (
