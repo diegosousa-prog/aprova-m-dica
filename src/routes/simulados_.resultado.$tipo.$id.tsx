@@ -3,16 +3,22 @@ import {
   CheckCircle2,
   CircleAlert,
   Home,
+  Loader2,
   RotateCcw,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { gerarUrlImagemB2 } from "@/lib/b2.functions";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute(
@@ -34,6 +40,7 @@ type ResultadoSalvo = {
   nome: string;
   tipo: "oficial" | "pessoal";
   total: number;
+  ordem: number[];
   respostas: Record<string, string | null>;
   corretas: Record<string, string>;
 };
@@ -48,6 +55,7 @@ type QuestaoResultado = {
   tema: string | null;
   instituicao: string | null;
   ano: number | null;
+  imagem_url: string | null;
 };
 
 function ResultadoSimuladoPage() {
@@ -66,6 +74,13 @@ function ResultadoSimuladoPage() {
 
   const [questaoSelecionada, setQuestaoSelecionada] =
     useState(0);
+
+  const [imagemUrl, setImagemUrl] = useState<string | null>(
+    null,
+  );
+
+  const [carregandoImagem, setCarregandoImagem] =
+    useState(false);
 
   useEffect(() => {
     try {
@@ -92,9 +107,7 @@ function ResultadoSimuladoPage() {
     async function carregarQuestoes() {
       if (!resultado) return;
 
-      const ids = Object.keys(resultado.respostas)
-        .map(Number)
-        .filter((numero) => Number.isFinite(numero));
+      const ids = resultado.ordem;
 
       if (ids.length === 0) {
         return;
@@ -115,7 +128,8 @@ function ResultadoSimuladoPage() {
               especialidade,
               tema,
               instituicao,
-              ano
+              ano,
+              imagem_url
             `,
           )
           .in("id", ids);
@@ -155,6 +169,60 @@ function ResultadoSimuladoPage() {
 
     void carregarQuestoes();
   }, [resultado]);
+
+  const questaoAtual =
+    questoes[questaoSelecionada] ?? null;
+
+  useEffect(() => {
+    if (!questaoAtual?.imagem_url) {
+      setImagemUrl(null);
+      setCarregandoImagem(false);
+      return;
+    }
+
+    let ativo = true;
+
+    async function carregarImagem() {
+      try {
+        setCarregandoImagem(true);
+        setImagemUrl(null);
+
+        const resultadoImagem =
+          await gerarUrlImagemB2({
+            data: {
+              nomeArquivo: questaoAtual.imagem_url!,
+            },
+          });
+
+        if (
+          ativo &&
+          resultadoImagem.sucesso &&
+          resultadoImagem.url
+        ) {
+          setImagemUrl(resultadoImagem.url);
+        }
+      } catch (erro) {
+        console.error(
+          "Erro ao carregar imagem da questão:",
+          erro,
+        );
+
+        if (ativo) {
+          setImagemUrl(null);
+        }
+      } finally {
+        if (ativo) {
+          setCarregandoImagem(false);
+        }
+      }
+    }
+
+    void carregarImagem();
+
+    return () => {
+      ativo = false;
+    };
+  }, [questaoAtual]);
 
   if (!resultado) {
     return (
@@ -211,9 +279,6 @@ function ResultadoSimuladoPage() {
     resultado.total > 0
       ? Math.round((acertadas / resultado.total) * 100)
       : 0;
-
-  const questaoAtual =
-    questoes[questaoSelecionada] ?? null;
 
   let respostaUsuario: string | null = null;
   let respostaCorreta: string | null = null;
@@ -514,6 +579,27 @@ function ResultadoSimuladoPage() {
                     <p className="text-base leading-relaxed">
                       {questaoAtual.enunciado}
                     </p>
+
+                    {questaoAtual.imagem_url ? (
+                      <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
+                        {carregandoImagem ? (
+                          <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="size-4 animate-spin" />
+                            Carregando imagem...
+                          </div>
+                        ) : imagemUrl ? (
+                          <img
+                            src={imagemUrl}
+                            alt="Imagem da questão"
+                            className="mx-auto max-h-[600px] w-auto max-w-full object-contain"
+                          />
+                        ) : (
+                          <div className="flex min-h-24 items-center justify-center text-sm text-muted-foreground">
+                            Não foi possível carregar a imagem.
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
                   </CardHeader>
 
                   <CardContent className="space-y-4">

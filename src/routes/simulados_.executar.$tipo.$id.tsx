@@ -11,7 +11,11 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+} from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { gerarUrlImagemB2 } from "@/lib/b2.functions";
@@ -129,15 +133,17 @@ function ExecutarSimuladoPage() {
         > = {};
 
         if (tipoSimulado === "oficial") {
-          const { data: simuladoData, error: simuladoError } =
-            await supabase
-              .from("simulados")
-              .select(
-                "id, nome, descricao, duracao_minutos",
-              )
-              .eq("id", simuladoId)
-              .eq("ativo", true)
-              .single();
+          const {
+            data: simuladoData,
+            error: simuladoError,
+          } = await supabase
+            .from("simulados")
+            .select(
+              "id, nome, descricao, duracao_minutos",
+            )
+            .eq("id", simuladoId)
+            .eq("ativo", true)
+            .single();
 
           if (simuladoError) {
             console.error(simuladoError);
@@ -510,64 +516,66 @@ function ExecutarSimuladoPage() {
   }
 
   async function finalizarSimulado() {
-  if (questoes.length === 0) {
-    return;
-  }
-
-  const respostas: Record<string, string | null> = {};
-  const corretas: Record<string, string> = {};
-
-  for (const questao of questoes) {
-    respostas[String(questao.id)] = questao.resposta;
-    corretas[String(questao.id)] = questao.resposta_correta;
-  }
-
-  const resultado = {
-    nome: simulado?.nome ?? "Simulado",
-    tipo: tipoSimulado,
-    total: questoes.length,
-    respostas,
-    corretas,
-  };
-
-  const chave = `qbmed-resultado-simulado-${tipoSimulado}-${simuladoId}`;
-
-  sessionStorage.setItem(
-    chave,
-    JSON.stringify(resultado),
-  );
-
-  if (tipoSimulado === "pessoal") {
-    const { error } = await supabase
-      .from("simulados_usuario")
-      .update({
-        status: "Concluído",
-        questao_atual: questoes.length,
-        concluido_em: new Date().toISOString(),
-      })
-      .eq("id", simuladoId);
-
-    if (error) {
-      console.error(error);
-
-      toast.error(
-        "Não foi possível finalizar o simulado.",
-      );
-
+    if (questoes.length === 0) {
       return;
     }
-  }
 
-  toast.success("Simulado finalizado!");
+    const respostas: Record<string, string | null> = {};
+    const corretas: Record<string, string> = {};
 
-  void navigate({
-    to: "/simulados/resultado/$tipo/$id",
-    params: {
+    for (const questao of questoes) {
+      respostas[String(questao.id)] = questao.resposta;
+      corretas[String(questao.id)] =
+        questao.resposta_correta;
+    }
+
+    const resultado = {
+      nome: simulado?.nome ?? "Simulado",
       tipo: tipoSimulado,
-      id: String(simuladoId),
-    },
-  });
-}
+      total: questoes.length,
+      ordem: questoes.map((questao) => questao.id),
+      respostas,
+      corretas,
+    };
+
+    const chave = `qbmed-resultado-simulado-${tipoSimulado}-${simuladoId}`;
+
+    sessionStorage.setItem(
+      chave,
+      JSON.stringify(resultado),
+    );
+
+    if (tipoSimulado === "pessoal") {
+      const { error } = await supabase
+        .from("simulados_usuario")
+        .update({
+          status: "Concluído",
+          questao_atual: questoes.length,
+          concluido_em: new Date().toISOString(),
+        })
+        .eq("id", simuladoId);
+
+      if (error) {
+        console.error(error);
+
+        toast.error(
+          "Não foi possível finalizar o simulado.",
+        );
+
+        return;
+      }
+    }
+
+    toast.success("Simulado finalizado!");
+
+    void navigate({
+      to: "/simulados/resultado/$tipo/$id",
+      params: {
+        tipo: tipoSimulado,
+        id: String(simuladoId),
+      },
+    });
+  }
 
   if (carregando) {
     return (
@@ -688,10 +696,6 @@ function ExecutarSimuladoPage() {
                     {questaoAtual.id}
                   </Badge>
 
-                  <Badge className="bg-primary text-primary-foreground">
-                    {questaoAtual.especialidade}
-                  </Badge>
-
                   {questaoAtual.instituicao ? (
                     <Badge variant="outline">
                       {questaoAtual.instituicao}
@@ -701,25 +705,6 @@ function ExecutarSimuladoPage() {
                   {questaoAtual.ano ? (
                     <Badge variant="outline">
                       {questaoAtual.ano}
-                    </Badge>
-                  ) : null}
-
-                  {questaoAtual.dificuldade ? (
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        questaoAtual.dificuldade ===
-                          "Fácil" &&
-                          "border-success text-success",
-                        questaoAtual.dificuldade ===
-                          "Média" &&
-                          "border-warning text-warning",
-                        questaoAtual.dificuldade ===
-                          "Difícil" &&
-                          "border-destructive text-destructive",
-                      )}
-                    >
-                      {questaoAtual.dificuldade}
                     </Badge>
                   ) : null}
                 </div>
