@@ -1,120 +1,319 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { CalendarDays, Clock, Play, Trophy } from "lucide-react";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { CalendarDays, Clock, Play, Plus, Trophy } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { simulados } from "@/data/mock";
+import { Card, CardContent } from "@/components/ui/card";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/simulados")({
   head: () => ({
     meta: [
       { title: "Simulados — QBMed" },
-      { name: "description", content: "Simulados cronometrados fictícios com correção automática e histórico de resultados." },
-      { property: "og:title", content: "Simulados — QBMed" },
-      { property: "og:description", content: "Faça simulados temáticos e nacionais e acompanhe seus resultados." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      {
+        name: "description",
+        content:
+          "Simulados oficiais e simulados personalizados do QBMed.",
+      },
     ],
   }),
   component: SimuladosPage,
 });
 
+type SimuladoOficial = {
+  id: number;
+  nome: string;
+  descricao: string | null;
+  duracao_minutos: number;
+  created_at: string;
+};
+
+type SimuladoUsuario = {
+  id: number;
+  nome: string;
+  quantidade_questoes: number;
+  status: string;
+  questao_atual: number;
+};
+
 function SimuladosPage() {
-  const [aba, setAba] = useState("disponiveis");
-  const concluidos = simulados.filter((s) => s.status === "Concluído");
-  const disponiveis = simulados.filter((s) => s.status === "Disponível");
-  const historico = concluidos
-    .map((s) => ({ nome: s.id, aproveitamento: Math.round((s.acertos / s.questoes) * 100) }))
-    .reverse();
+  const navigate = useNavigate();
+
+  const [simuladosOficiais, setSimuladosOficiais] = useState<
+    SimuladoOficial[]
+  >([]);
+
+  const [meusSimulados, setMeusSimulados] = useState<
+    SimuladoUsuario[]
+  >([]);
+
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    async function carregarDados() {
+      setCarregando(true);
+
+      const { data: oficiais, error: erroOficiais } =
+        await supabase
+          .from("simulados")
+          .select(
+            "id, nome, descricao, duracao_minutos, created_at",
+          )
+          .eq("ativo", true)
+          .order("created_at", { ascending: false });
+
+      if (erroOficiais) {
+        console.error(erroOficiais);
+        toast.error("Erro ao carregar os simulados.");
+      } else {
+        setSimuladosOficiais(oficiais ?? []);
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: pessoais, error: erroPessoais } =
+          await supabase
+            .from("simulados_usuario")
+            .select(
+              "id, nome, quantidade_questoes, status, questao_atual",
+            )
+            .order("criado_em", { ascending: false });
+
+        if (erroPessoais) {
+          console.error(erroPessoais);
+          toast.error("Erro ao carregar seus simulados.");
+        } else {
+          setMeusSimulados(pessoais ?? []);
+        }
+      }
+
+      setCarregando(false);
+    }
+
+    void carregarDados();
+  }, []);
+
+  function criarSimulado() {
+    void navigate({
+      to: "/simulados/criar",
+    });
+  }
+
+  function iniciarSimulado(id: number) {
+    void navigate({
+      to: "/simulados/executar/$tipo/$id",
+      params: {
+        tipo: "oficial",
+        id: String(id),
+      },
+    });
+  }
+
+  function continuarSimulado(id: number) {
+    void navigate({
+      to: "/simulados/executar/$tipo/$id",
+      params: {
+        tipo: "pessoal",
+        id: String(id),
+      },
+    });
+  }
 
   return (
-    <AppShell titulo="Simulados" descricao="Treine em condições de prova e compare seus resultados.">
-      <Tabs value={aba} onValueChange={setAba}>
-        <TabsList>
-          <TabsTrigger value="disponiveis">Disponíveis ({disponiveis.length})</TabsTrigger>
-          <TabsTrigger value="historico">Histórico ({concluidos.length})</TabsTrigger>
-        </TabsList>
+    <AppShell
+      titulo="Simulados"
+      descricao="Treine em condições de prova ou crie seu próprio simulado."
+    >
+      <div className="mb-6 flex flex-col gap-4 rounded-xl border bg-card p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">
+            Crie seu próprio simulado
+          </h2>
 
-        <TabsContent value="disponiveis" className="mt-6 grid gap-4 md:grid-cols-2">
-          {disponiveis.map((s) => (
-            <Card key={s.id}>
-              <CardContent className="space-y-3 p-6">
-                <Badge className="bg-accent text-accent-foreground">Novo</Badge>
-                <h3 className="text-lg font-semibold">{s.nome}</h3>
-                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <CalendarDays className="size-4" /> {s.data}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="size-4" /> {s.duracao}
-                  </span>
-                  <span>{s.questoes} questões</span>
-                </div>
-                <Button onClick={() => toast.success(`Simulado ${s.nome} iniciado (demonstração).`)}>
-                  <Play className="mr-2 size-4" /> Iniciar simulado
-                </Button>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Escolha a quantidade de questões e os filtros que
+            deseja estudar.
+          </p>
+        </div>
+
+        <Button onClick={criarSimulado}>
+          <Plus className="mr-2 size-4" />
+          Criar simulado
+        </Button>
+      </div>
+
+      <div className="space-y-8">
+        <section>
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">
+              Simulados disponíveis
+            </h2>
+
+            <p className="text-sm text-muted-foreground">
+              Provas oficiais disponibilizadas pela
+              administração.
+            </p>
+          </div>
+
+          {carregando ? (
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground">
+                Carregando simulados...
               </CardContent>
             </Card>
-          ))}
-        </TabsContent>
+          ) : simuladosOficiais.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Trophy className="mx-auto mb-3 size-10 text-muted-foreground" />
 
-        <TabsContent value="historico" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Aproveitamento por simulado</CardTitle>
-            </CardHeader>
-            <CardContent className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={historico}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                  <XAxis dataKey="nome" stroke="var(--muted-foreground)" fontSize={12} />
-                  <YAxis stroke="var(--muted-foreground)" fontSize={12} unit="%" />
-                  <Tooltip
-                    contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12 }}
-                  />
-                  <Bar dataKey="aproveitamento" name="Aproveitamento" fill="var(--chart-2)" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+                <h3 className="font-semibold">
+                  Nenhum simulado disponível
+                </h3>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {concluidos.map((s) => {
-              const pct = Math.round((s.acertos / s.questoes) * 100);
-              return (
-                <Card key={s.id}>
-                  <CardContent className="space-y-3 p-6">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold">{s.nome}</h3>
-                      <Badge variant={pct >= 70 ? "default" : "secondary"} className={pct >= 70 ? "bg-success" : ""}>
-                        {pct}%
-                      </Badge>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Os simulados oficiais aparecerão aqui quando
+                  forem publicados.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {simuladosOficiais.map((simulado) => (
+                <Card key={simulado.id}>
+                  <CardContent className="space-y-4 p-6">
+                    <Badge>Simulado oficial</Badge>
+
+                    <div>
+                      <h3 className="text-lg font-semibold">
+                        {simulado.nome}
+                      </h3>
+
+                      {simulado.descricao && (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {simulado.descricao}
+                        </p>
+                      )}
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {s.data} • {s.acertos}/{s.questoes} acertos • {s.duracao}
-                    </p>
-                    <Progress value={pct} />
+
+                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <CalendarDays className="size-4" />
+
+                        {new Intl.DateTimeFormat(
+                          "pt-BR",
+                        ).format(
+                          new Date(simulado.created_at),
+                        )}
+                      </span>
+
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="size-4" />
+
+                        {simulado.duracao_minutos} min
+                      </span>
+                    </div>
+
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toast("Abrindo espelho de prova (demonstração).")}
+                      onClick={() =>
+                        iniciarSimulado(simulado.id)
+                      }
                     >
-                      <Trophy className="mr-2 size-4" /> Ver desempenho
+                      <Play className="mr-2 size-4" />
+                      Iniciar simulado
                     </Button>
                   </CardContent>
                 </Card>
-              );
-            })}
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">
+              Meus simulados
+            </h2>
+
+            <p className="text-sm text-muted-foreground">
+              Simulados personalizados criados por você.
+            </p>
           </div>
-        </TabsContent>
-      </Tabs>
+
+          {meusSimulados.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Plus className="mx-auto mb-3 size-10 text-muted-foreground" />
+
+                <h3 className="font-semibold">
+                  Você ainda não criou nenhum simulado
+                </h3>
+
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Clique em "Criar simulado" para começar.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {meusSimulados.map((simulado) => (
+                <Card key={simulado.id}>
+                  <CardContent className="space-y-4 p-6">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="font-semibold">
+                        {simulado.nome}
+                      </h3>
+
+                      <Badge variant="secondary">
+                        {simulado.status}
+                      </Badge>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground">
+                      {simulado.questao_atual} de{" "}
+                      {simulado.quantidade_questoes} questões
+                    </p>
+
+                    {simulado.status === "Em andamento" && (
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          continuarSimulado(
+                            simulado.id,
+                          )
+                        }
+                      >
+                        <Play className="mr-2 size-4" />
+                        Continuar
+                      </Button>
+                    )}
+
+                    {simulado.status === "Concluído" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          continuarSimulado(
+                            simulado.id,
+                          )
+                        }
+                      >
+                        <Play className="mr-2 size-4" />
+                        Ver simulado
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </AppShell>
   );
 }

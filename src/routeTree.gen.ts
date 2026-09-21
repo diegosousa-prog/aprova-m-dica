@@ -19,6 +19,9 @@ import { Route as QuestoesRouteImport } from './routes/questoes'
 import { Route as SimuladosRouteImport } from './routes/simulados'
 import { Route as AdministracaoImportarProvaRouteImport } from './routes/administracao/importar-prova'
 import { Route as AdministracaoQuestoesRouteImport } from './routes/administracao.questoes'
+import { Route as SimuladosCriarRouteImport } from './routes/simulados_.criar'
+import { Route as SimuladosExecutarTipoIdRouteImport } from './routes/simulados_.executar.$tipo.$id'
+import { Route as SimuladosResultadoTipoIdRouteImport } from './routes/simulados_.resultado.$tipo.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -71,6 +74,22 @@ const AdministracaoQuestoesRoute = AdministracaoQuestoesRouteImport.update({
   path: '/administracao/questoes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SimuladosCriarRoute = SimuladosCriarRouteImport.update({
+  id: '/simulados_/criar',
+  path: '/simulados/criar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SimuladosExecutarTipoIdRoute = SimuladosExecutarTipoIdRouteImport.update({
+  id: '/simulados_/executar/$tipo/$id',
+  path: '/simulados/executar/$tipo/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SimuladosResultadoTipoIdRoute =
+  SimuladosResultadoTipoIdRouteImport.update({
+    id: '/simulados_/resultado/$tipo/$id',
+    path: '/simulados/resultado/$tipo/$id',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -83,6 +102,9 @@ export interface FileRoutesByFullPath {
   '/simulados': typeof SimuladosRoute
   '/administracao/importar-prova': typeof AdministracaoImportarProvaRoute
   '/administracao/questoes': typeof AdministracaoQuestoesRoute
+  '/simulados/criar': typeof SimuladosCriarRoute
+  '/simulados/executar/$tipo/$id': typeof SimuladosExecutarTipoIdRoute
+  '/simulados/resultado/$tipo/$id': typeof SimuladosResultadoTipoIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -95,6 +117,9 @@ export interface FileRoutesByTo {
   '/simulados': typeof SimuladosRoute
   '/administracao/importar-prova': typeof AdministracaoImportarProvaRoute
   '/administracao/questoes': typeof AdministracaoQuestoesRoute
+  '/simulados/criar': typeof SimuladosCriarRoute
+  '/simulados/executar/$tipo/$id': typeof SimuladosExecutarTipoIdRoute
+  '/simulados/resultado/$tipo/$id': typeof SimuladosResultadoTipoIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -108,6 +133,9 @@ export interface FileRoutesById {
   '/simulados': typeof SimuladosRoute
   '/administracao/importar-prova': typeof AdministracaoImportarProvaRoute
   '/administracao/questoes': typeof AdministracaoQuestoesRoute
+  '/simulados_/criar': typeof SimuladosCriarRoute
+  '/simulados_/executar/$tipo/$id': typeof SimuladosExecutarTipoIdRoute
+  '/simulados_/resultado/$tipo/$id': typeof SimuladosResultadoTipoIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -122,6 +150,9 @@ export interface FileRouteTypes {
     | '/simulados'
     | '/administracao/importar-prova'
     | '/administracao/questoes'
+    | '/simulados/criar'
+    | '/simulados/executar/$tipo/$id'
+    | '/simulados/resultado/$tipo/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -134,6 +165,9 @@ export interface FileRouteTypes {
     | '/simulados'
     | '/administracao/importar-prova'
     | '/administracao/questoes'
+    | '/simulados/criar'
+    | '/simulados/executar/$tipo/$id'
+    | '/simulados/resultado/$tipo/$id'
   id:
     | '__root__'
     | '/'
@@ -146,6 +180,9 @@ export interface FileRouteTypes {
     | '/simulados'
     | '/administracao/importar-prova'
     | '/administracao/questoes'
+    | '/simulados_/criar'
+    | '/simulados_/executar/$tipo/$id'
+    | '/simulados_/resultado/$tipo/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -159,6 +196,9 @@ export interface RootRouteChildren {
   SimuladosRoute: typeof SimuladosRoute
   AdministracaoImportarProvaRoute: typeof AdministracaoImportarProvaRoute
   AdministracaoQuestoesRoute: typeof AdministracaoQuestoesRoute
+  SimuladosCriarRoute: typeof SimuladosCriarRoute
+  SimuladosExecutarTipoIdRoute: typeof SimuladosExecutarTipoIdRoute
+  SimuladosResultadoTipoIdRoute: typeof SimuladosResultadoTipoIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -233,6 +273,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdministracaoQuestoesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/simulados_/criar': {
+      id: '/simulados_/criar'
+      path: '/simulados/criar'
+      fullPath: '/simulados/criar'
+      preLoaderRoute: typeof SimuladosCriarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/simulados_/executar/$tipo/$id': {
+      id: '/simulados_/executar/$tipo/$id'
+      path: '/simulados/executar/$tipo/$id'
+      fullPath: '/simulados/executar/$tipo/$id'
+      preLoaderRoute: typeof SimuladosExecutarTipoIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/simulados_/resultado/$tipo/$id': {
+      id: '/simulados_/resultado/$tipo/$id'
+      path: '/simulados/resultado/$tipo/$id'
+      fullPath: '/simulados/resultado/$tipo/$id'
+      preLoaderRoute: typeof SimuladosResultadoTipoIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -247,6 +308,9 @@ const rootRouteChildren: RootRouteChildren = {
   SimuladosRoute: SimuladosRoute,
   AdministracaoImportarProvaRoute: AdministracaoImportarProvaRoute,
   AdministracaoQuestoesRoute: AdministracaoQuestoesRoute,
+  SimuladosCriarRoute: SimuladosCriarRoute,
+  SimuladosExecutarTipoIdRoute: SimuladosExecutarTipoIdRoute,
+  SimuladosResultadoTipoIdRoute: SimuladosResultadoTipoIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
