@@ -275,6 +275,7 @@ function CriarSimuladoPage() {
   const [carregando, setCarregando] = useState(true);
   const [criando, setCriando] = useState(false);
 
+  const [nomeSimulado, setNomeSimulado] = useState("");
   const [quantidade, setQuantidade] = useState("20");
 
   const [grandesAreasSelecionadas, setGrandesAreasSelecionadas] =
@@ -502,6 +503,7 @@ function CriarSimuladoPage() {
   }
 
   function limpar() {
+    setNomeSimulado("");
     setGrandesAreasSelecionadas([]);
     setEspecialidadesSelecionadas([]);
     setTemasSelecionados([]);
@@ -582,7 +584,9 @@ function CriarSimuladoPage() {
         );
       }
 
-      const nome = nomePartes.join(" — ");
+      const nomeAutomatico = nomePartes.join(" — ");
+      const nome =
+        nomeSimulado.trim() || nomeAutomatico;
 
       const { data: simulado, error: erroSimulado } =
         await supabase
@@ -667,7 +671,11 @@ function CriarSimuladoPage() {
       }
 
       void navigate({
-        to: "/simulados",
+        to: "/simulados/executar/$tipo/$id",
+        params: {
+          tipo: "pessoal",
+          id: String(simulado.id),
+        },
       });
     } finally {
       setCriando(false);
@@ -717,6 +725,25 @@ function CriarSimuladoPage() {
           </CardHeader>
 
           <CardContent className="space-y-5">
+            <div className="grid gap-2">
+              <Label htmlFor="nome-simulado">
+                Nome do simulado{" "}
+                <span className="text-muted-foreground">
+                  (opcional)
+                </span>
+              </Label>
+
+              <Input
+                id="nome-simulado"
+                value={nomeSimulado}
+                onChange={(event) =>
+                  setNomeSimulado(event.target.value)
+                }
+                placeholder="Ex.: Revisão de Cardiologia"
+                maxLength={100}
+              />
+            </div>
+
             <div className="grid gap-2">
               <Label>
                 Quantidade de questões

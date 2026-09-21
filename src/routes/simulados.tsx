@@ -1,5 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { CalendarDays, Clock, Play, Plus, Trophy } from "lucide-react";
+import {
+  BarChart3,
+  CalendarDays,
+  Clock,
+  Play,
+  Plus,
+  RotateCcw,
+  Trash2,
+  Trophy,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -51,51 +60,73 @@ function SimuladosPage() {
   >([]);
 
   const [carregando, setCarregando] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [processandoId, setProcessandoId] = useState<number | null>(
+    null,
+  );
 
-  useEffect(() => {
-    async function carregarDados() {
-      setCarregando(true);
+  async function carregarDados() {
+    setCarregando(true);
 
-      const { data: oficiais, error: erroOficiais } =
+    const { data: oficiais, error: erroOficiais } =
+      await supabase
+        .from("simulados")
+        .select(
+          "id, nome, descricao, duracao_minutos, created_at",
+        )
+        .eq("ativo", true)
+        .order("created_at", { ascending: false });
+
+    if (erroOficiais) {
+      console.error(erroOficiais);
+      toast.error("Erro ao carregar os simulados.");
+    } else {
+      setSimuladosOficiais(oficiais ?? []);
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: perfil, error: erroPerfil } =
         await supabase
-          .from("simulados")
-          .select(
-            "id, nome, descricao, duracao_minutos, created_at",
-          )
-          .eq("ativo", true)
-          .order("created_at", { ascending: false });
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", user.id)
+          .single();
 
-      if (erroOficiais) {
-        console.error(erroOficiais);
-        toast.error("Erro ao carregar os simulados.");
+      if (erroPerfil) {
+        console.error(erroPerfil);
+        setIsAdmin(false);
       } else {
-        setSimuladosOficiais(oficiais ?? []);
+        setIsAdmin(perfil?.is_admin === true);
       }
 
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        data: pessoais,
+        error: erroPessoais,
+      } = await supabase
+        .from("simulados_usuario")
+        .select(
+          "id, nome, quantidade_questoes, status, questao_atual",
+        )
+        .order("criado_em", { ascending: false });
 
-      if (user) {
-        const { data: pessoais, error: erroPessoais } =
-          await supabase
-            .from("simulados_usuario")
-            .select(
-              "id, nome, quantidade_questoes, status, questao_atual",
-            )
-            .order("criado_em", { ascending: false });
-
-        if (erroPessoais) {
-          console.error(erroPessoais);
-          toast.error("Erro ao carregar seus simulados.");
-        } else {
-          setMeusSimulados(pessoais ?? []);
-        }
+      if (erroPessoais) {
+        console.error(erroPessoais);
+        toast.error("Erro ao carregar seus simulados.");
+      } else {
+        setMeusSimulados(pessoais ?? []);
       }
-
-      setCarregando(false);
+    } else {
+      setIsAdmin(false);
     }
 
+    setCarregando(false);
+  }
+
+  useEffect(() => {
     void carregarDados();
   }, []);
 
@@ -103,6 +134,10 @@ function SimuladosPage() {
     void navigate({
       to: "/simulados/criar",
     });
+  }
+
+  function criarSimuladoOficial() {
+    window.location.assign("/simulados/admin/criar");
   }
 
   function iniciarSimulado(id: number) {
@@ -123,6 +158,117 @@ function SimuladosPage() {
         id: String(id),
       },
     });
+  }
+
+  function verDesempenho(id: number) {
+    void navigate({
+      to: "/simulados/resultado/$tipo/$id",
+      params: {
+        tipo: "pessoal",
+        id: String(id),
+      },
+    });
+  }
+
+  async function refazerSimulado(id: number) {
+    const confirmou = window.confirm(
+      "Tem certeza que deseja refazer este simulado? Todas as respostas serão apagadas.",
+    );
+
+    if (!confirmou) {
+      return;
+    }
+
+    setProcessandoId(id);
+
+    const { error: erroQuestoes } = await supabase
+      .from("simulado_usuario_questoes")
+      .update({
+        resposta: null,
+        acertou: null,
+        respondida_em: null,
+      })
+      .eq("simulado_usuario_id", id);
+
+    if (erroQuestoes) {
+      console.error(erroQuestoes);
+      toast.error("Não foi possível zerar as respostas.");
+      setProcessandoId(null);
+      return;
+    }
+
+    const { error: erroSimulado } = await supabase
+      .from("simulados_usuario")
+      .update({
+        status: "Em andamento",
+        questao_atual: 0,
+        iniciado_em: new Date().toISOString(),
+        concluido_em: null,
+      })
+      .eq("id", id);
+
+    if (erroSimulado) {
+      console.error(erroSimulado);
+      toast.error("Não foi possível reiniciar o simulado.");
+      setProcessandoId(null);
+      return;
+    }
+
+    setMeusSimulados((simulados) =>
+      simulados.map((simulado) =>
+        simulado.id === id
+          ? {
+              ...simulado,
+              status: "Em andamento",
+              questao_atual: 0,
+            }
+          : simulado,
+      ),
+    );
+
+    toast.success("Simulado zerado. Bom estudo!");
+
+    setProcessandoId(null);
+
+    void navigate({
+      to: "/simulados/executar/$tipo/$id",
+      params: {
+        tipo: "pessoal",
+        id: String(id),
+      },
+    });
+  }
+
+  async function excluirSimulado(id: number) {
+    const confirmou = window.confirm(
+      "Tem certeza que deseja excluir este simulado? Essa ação não pode ser desfeita.",
+    );
+
+    if (!confirmou) {
+      return;
+    }
+
+    setProcessandoId(id);
+
+    const { error } = await supabase
+      .from("simulados_usuario")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error(error);
+      toast.error("Não foi possível excluir o simulado.");
+      setProcessandoId(null);
+      return;
+    }
+
+    setMeusSimulados((simulados) =>
+      simulados.filter((simulado) => simulado.id !== id),
+    );
+
+    toast.success("Simulado excluído.");
+
+    setProcessandoId(null);
   }
 
   return (
@@ -150,15 +296,24 @@ function SimuladosPage() {
 
       <div className="space-y-8">
         <section>
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold">
-              Simulados disponíveis
-            </h2>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">
+                Simulados disponíveis
+              </h2>
 
-            <p className="text-sm text-muted-foreground">
-              Provas oficiais disponibilizadas pela
-              administração.
-            </p>
+              <p className="text-sm text-muted-foreground">
+                Provas oficiais disponibilizadas pela
+                administração.
+              </p>
+            </div>
+
+            {isAdmin ? (
+              <Button onClick={criarSimuladoOficial}>
+                <Plus className="mr-2 size-4" />
+                Criar simulado
+              </Button>
+            ) : null}
           </div>
 
           {carregando ? (
@@ -261,55 +416,91 @@ function SimuladosPage() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {meusSimulados.map((simulado) => (
-                <Card key={simulado.id}>
-                  <CardContent className="space-y-4 p-6">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="font-semibold">
-                        {simulado.nome}
-                      </h3>
+              {meusSimulados.map((simulado) => {
+                const processando =
+                  processandoId === simulado.id;
 
-                      <Badge variant="secondary">
-                        {simulado.status}
-                      </Badge>
-                    </div>
+                return (
+                  <Card key={simulado.id}>
+                    <CardContent className="space-y-4 p-6">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="font-semibold">
+                          {simulado.nome}
+                        </h3>
 
-                    <p className="text-sm text-muted-foreground">
-                      {simulado.questao_atual} de{" "}
-                      {simulado.quantidade_questoes} questões
-                    </p>
+                        <Badge variant="secondary">
+                          {simulado.status}
+                        </Badge>
+                      </div>
 
-                    {simulado.status === "Em andamento" && (
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          continuarSimulado(
-                            simulado.id,
-                          )
-                        }
-                      >
-                        <Play className="mr-2 size-4" />
-                        Continuar
-                      </Button>
-                    )}
+                      <p className="text-sm text-muted-foreground">
+                        {simulado.questao_atual} de{" "}
+                        {simulado.quantidade_questoes} questões
+                      </p>
 
-                    {simulado.status === "Concluído" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          continuarSimulado(
-                            simulado.id,
-                          )
-                        }
-                      >
-                        <Play className="mr-2 size-4" />
-                        Ver simulado
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                      <div className="flex flex-wrap gap-2">
+                        {simulado.status === "Em andamento" && (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              continuarSimulado(
+                                simulado.id,
+                              )
+                            }
+                            disabled={processando}
+                          >
+                            <Play className="mr-2 size-4" />
+                            Continuar
+                          </Button>
+                        )}
+
+                        {simulado.status === "Concluído" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              verDesempenho(simulado.id)
+                            }
+                            disabled={processando}
+                          >
+                            <BarChart3 className="mr-2 size-4" />
+                            Ver desempenho
+                          </Button>
+                        )}
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            void refazerSimulado(
+                              simulado.id,
+                            )
+                          }
+                          disabled={processando}
+                        >
+                          <RotateCcw className="mr-2 size-4" />
+                          Refazer
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() =>
+                            void excluirSimulado(
+                              simulado.id,
+                            )
+                          }
+                          disabled={processando}
+                        >
+                          <Trash2 className="mr-2 size-4" />
+                          Excluir
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </section>

@@ -20,6 +20,7 @@ import { Route as SimuladosRouteImport } from './routes/simulados'
 import { Route as AdministracaoImportarProvaRouteImport } from './routes/administracao/importar-prova'
 import { Route as AdministracaoQuestoesRouteImport } from './routes/administracao.questoes'
 import { Route as SimuladosCriarRouteImport } from './routes/simulados_.criar'
+import { Route as SimuladosAdminCriarRouteImport } from './routes/simulados_.admin.criar'
 import { Route as SimuladosExecutarTipoIdRouteImport } from './routes/simulados_.executar.$tipo.$id'
 import { Route as SimuladosResultadoTipoIdRouteImport } from './routes/simulados_.resultado.$tipo.$id'
 
@@ -79,6 +80,11 @@ const SimuladosCriarRoute = SimuladosCriarRouteImport.update({
   path: '/simulados/criar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SimuladosAdminCriarRoute = SimuladosAdminCriarRouteImport.update({
+  id: '/simulados_/admin/criar',
+  path: '/simulados/admin/criar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SimuladosExecutarTipoIdRoute = SimuladosExecutarTipoIdRouteImport.update({
   id: '/simulados_/executar/$tipo/$id',
   path: '/simulados/executar/$tipo/$id',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/administracao/importar-prova': typeof AdministracaoImportarProvaRoute
   '/administracao/questoes': typeof AdministracaoQuestoesRoute
   '/simulados/criar': typeof SimuladosCriarRoute
+  '/simulados/admin/criar': typeof SimuladosAdminCriarRoute
   '/simulados/executar/$tipo/$id': typeof SimuladosExecutarTipoIdRoute
   '/simulados/resultado/$tipo/$id': typeof SimuladosResultadoTipoIdRoute
 }
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/administracao/importar-prova': typeof AdministracaoImportarProvaRoute
   '/administracao/questoes': typeof AdministracaoQuestoesRoute
   '/simulados/criar': typeof SimuladosCriarRoute
+  '/simulados/admin/criar': typeof SimuladosAdminCriarRoute
   '/simulados/executar/$tipo/$id': typeof SimuladosExecutarTipoIdRoute
   '/simulados/resultado/$tipo/$id': typeof SimuladosResultadoTipoIdRoute
 }
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/administracao/importar-prova': typeof AdministracaoImportarProvaRoute
   '/administracao/questoes': typeof AdministracaoQuestoesRoute
   '/simulados_/criar': typeof SimuladosCriarRoute
+  '/simulados_/admin/criar': typeof SimuladosAdminCriarRoute
   '/simulados_/executar/$tipo/$id': typeof SimuladosExecutarTipoIdRoute
   '/simulados_/resultado/$tipo/$id': typeof SimuladosResultadoTipoIdRoute
 }
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/administracao/importar-prova'
     | '/administracao/questoes'
     | '/simulados/criar'
+    | '/simulados/admin/criar'
     | '/simulados/executar/$tipo/$id'
     | '/simulados/resultado/$tipo/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/administracao/importar-prova'
     | '/administracao/questoes'
     | '/simulados/criar'
+    | '/simulados/admin/criar'
     | '/simulados/executar/$tipo/$id'
     | '/simulados/resultado/$tipo/$id'
   id:
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/administracao/importar-prova'
     | '/administracao/questoes'
     | '/simulados_/criar'
+    | '/simulados_/admin/criar'
     | '/simulados_/executar/$tipo/$id'
     | '/simulados_/resultado/$tipo/$id'
   fileRoutesById: FileRoutesById
@@ -197,6 +209,7 @@ export interface RootRouteChildren {
   AdministracaoImportarProvaRoute: typeof AdministracaoImportarProvaRoute
   AdministracaoQuestoesRoute: typeof AdministracaoQuestoesRoute
   SimuladosCriarRoute: typeof SimuladosCriarRoute
+  SimuladosAdminCriarRoute: typeof SimuladosAdminCriarRoute
   SimuladosExecutarTipoIdRoute: typeof SimuladosExecutarTipoIdRoute
   SimuladosResultadoTipoIdRoute: typeof SimuladosResultadoTipoIdRoute
 }
@@ -280,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SimuladosCriarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/simulados_/admin/criar': {
+      id: '/simulados_/admin/criar'
+      path: '/simulados/admin/criar'
+      fullPath: '/simulados/admin/criar'
+      preLoaderRoute: typeof SimuladosAdminCriarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/simulados_/executar/$tipo/$id': {
       id: '/simulados_/executar/$tipo/$id'
       path: '/simulados/executar/$tipo/$id'
@@ -309,6 +329,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdministracaoImportarProvaRoute: AdministracaoImportarProvaRoute,
   AdministracaoQuestoesRoute: AdministracaoQuestoesRoute,
   SimuladosCriarRoute: SimuladosCriarRoute,
+  SimuladosAdminCriarRoute: SimuladosAdminCriarRoute,
   SimuladosExecutarTipoIdRoute: SimuladosExecutarTipoIdRoute,
   SimuladosResultadoTipoIdRoute: SimuladosResultadoTipoIdRoute,
 }
