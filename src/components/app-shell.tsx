@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Bell,
   BookOpenCheck,
@@ -11,10 +11,9 @@ import {
   Search,
   Stethoscope,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { notificacoes, usuario } from "@/data/mock";
+import { supabase } from "@/lib/supabase";
 
 const navegacao = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -35,6 +35,22 @@ const navegacao = [
   { to: "/desempenho", label: "Desempenho", icon: LineChart },
   { to: "/anotacoes", label: "Anotações", icon: NotebookPen },
 ] as const;
+
+function obterIniciais(nome: string) {
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+
+  if (partes.length === 0) {
+    return "";
+  }
+
+  if (partes.length === 1) {
+    return partes[0].slice(0, 2).toUpperCase();
+  }
+
+  return (
+    partes[0][0] + partes[partes.length - 1][0]
+  ).toUpperCase();
+}
 
 export function AppShell({
   children,
@@ -45,17 +61,91 @@ export function AppShell({
   titulo: string;
   descricao?: string;
 }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const pathname = useRouterState({
+    select: (s) => s.location.pathname,
+  });
+
+  const navigate = useNavigate();
+
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
 
+  // Começa vazio para não mostrar o usuário fictício
+  // enquanto os dados reais estão sendo carregados.
+  const [nomeUsuario, setNomeUsuario] = useState("");
+  const [emailUsuario, setEmailUsuario] = useState("");
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function carregarUsuario() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !ativo) {
+        return;
+      }
+
+      const email = user.email ?? "";
+
+      const { data: perfil, error } = await supabase
+        .from("profiles")
+        .select("nome")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!ativo) {
+        return;
+      }
+
+      if (error) {
+        console.error(
+          "Erro ao carregar nome do usuário:",
+          error,
+        );
+
+        setEmailUsuario(email);
+
+        setNomeUsuario(
+          user.user_metadata?.nome ||
+            user.user_metadata?.name ||
+            email.split("@")[0] ||
+            "Usuário",
+        );
+
+        return;
+      }
+
+      const nome =
+        perfil?.nome ||
+        user.user_metadata?.nome ||
+        user.user_metadata?.name ||
+        email.split("@")[0] ||
+        "Usuário";
+
+      setEmailUsuario(email);
+      setNomeUsuario(nome);
+    }
+
+    carregarUsuario();
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  const iniciaisUsuario = obterIniciais(nomeUsuario);
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen w-full bg-background">
       {/* Sidebar */}
       <aside
         className={cn(
-          "group fixed inset-y-0 left-0 z-40 flex-col overflow-hidden bg-sidebar text-sidebar-foreground shadow-sm transition-[width,transform] duration-200 lg:flex lg:w-16 lg:translate-x-0 lg:hover:w-64",
-          aberto ? "flex w-64 translate-x-0" : "hidden -translate-x-full",
+          "group sticky top-0 flex h-screen shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground shadow-sm transition-[width] duration-200",
+          aberto
+            ? "w-64 lg:w-16 lg:hover:w-64"
+            : "w-0 lg:w-16 lg:hover:w-64",
         )}
       >
         {/* Logo */}
@@ -67,7 +157,13 @@ export function AppShell({
             <Stethoscope className="size-5" />
           </span>
 
-          <span className="whitespace-nowrap text-lg font-bold tracking-tight opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+          <span
+            className={cn(
+              "whitespace-nowrap text-lg font-bold tracking-tight transition-opacity duration-150",
+              "opacity-0 lg:group-hover:opacity-100",
+              aberto && "opacity-100",
+            )}
+          >
             QBMed
           </span>
         </Link>
@@ -91,7 +187,13 @@ export function AppShell({
               >
                 <item.icon className="size-5 shrink-0" />
 
-                <span className="whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                <span
+                  className={cn(
+                    "whitespace-nowrap transition-opacity duration-150",
+                    "opacity-0 lg:group-hover:opacity-100",
+                    aberto && "opacity-100",
+                  )}
+                >
                   {item.label}
                 </span>
               </Link>
@@ -100,7 +202,13 @@ export function AppShell({
         </nav>
 
         {/* Plano atual */}
-        <div className="m-3 shrink-0 overflow-hidden rounded-xl bg-sidebar-accent p-4 text-sidebar-accent-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+        <div
+          className={cn(
+            "m-3 shrink-0 overflow-hidden rounded-xl bg-sidebar-accent p-4 text-sidebar-accent-foreground transition-opacity duration-150",
+            "opacity-0 lg:group-hover:opacity-100",
+            aberto && "opacity-100",
+          )}
+        >
           <p className="whitespace-nowrap text-xs uppercase tracking-wide opacity-70">
             Plano atual
           </p>
@@ -116,14 +224,17 @@ export function AppShell({
       </aside>
 
       {/* Conteúdo */}
-      <div className="flex min-h-screen min-w-0 flex-col lg:pl-16">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-card/90 px-4 py-3 backdrop-blur lg:px-8">
+          {/* Botão do menu em telas menores */}
           <Button
             variant="ghost"
             size="icon"
             className="lg:hidden"
             onClick={() => setAberto((v) => !v)}
-            aria-label="Abrir menu"
+            aria-label={
+              aberto ? "Fechar menu" : "Abrir menu"
+            }
           >
             <Menu className="size-5" />
           </Button>
@@ -140,10 +251,7 @@ export function AppShell({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <Badge variant="secondary" className="hidden sm:inline-flex">
-              🔥 {usuario.streak} dias
-            </Badge>
-
+            {/* Notificações */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -158,7 +266,10 @@ export function AppShell({
                 </Button>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuContent
+                align="end"
+                className="w-72"
+              >
                 <DropdownMenuLabel>
                   Notificações
                 </DropdownMenuLabel>
@@ -170,7 +281,9 @@ export function AppShell({
                     key={n.id}
                     className="flex-col items-start gap-0.5"
                   >
-                    <span className="text-sm">{n.titulo}</span>
+                    <span className="text-sm">
+                      {n.titulo}
+                    </span>
 
                     <span className="text-xs text-muted-foreground">
                       {n.tempo}
@@ -180,37 +293,56 @@ export function AppShell({
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {/* Usuário */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="gap-2 px-2">
+                <Button
+                  variant="ghost"
+                  className="gap-2 px-2"
+                >
                   <Avatar className="size-8">
                     <AvatarFallback className="bg-primary text-xs text-primary-foreground">
-                      {usuario.iniciais}
+                      {nomeUsuario
+                        ? iniciaisUsuario
+                        : null}
                     </AvatarFallback>
                   </Avatar>
 
                   <span className="hidden text-sm font-medium sm:inline">
-                    {usuario.nome}
+                    {nomeUsuario}
                   </span>
                 </Button>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent
+                align="end"
+                className="w-56"
+              >
                 <DropdownMenuLabel className="flex flex-col">
-                  <span>{usuario.nome}</span>
+                  <span>{nomeUsuario}</span>
 
                   <span className="text-xs font-normal text-muted-foreground">
-                    {usuario.email}
+                    {emailUsuario}
                   </span>
                 </DropdownMenuLabel>
 
                 <DropdownMenuSeparator />
 
                 <DropdownMenuItem asChild>
-                  <Link to="/perfil">Meu perfil</Link>
+                  <Link to="/perfil">
+                    Meu perfil
+                  </Link>
                 </DropdownMenuItem>
 
-                <DropdownMenuItem>Assinatura</DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    navigate({
+                      to: "/assinatura",
+                    });
+                  }}
+                >
+                  Assinatura
+                </DropdownMenuItem>
 
                 <DropdownMenuSeparator />
 

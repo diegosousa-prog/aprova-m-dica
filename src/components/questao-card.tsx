@@ -37,17 +37,22 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
   const [selecionada, setSelecionada] = useState<string | null>(
     respostaSalva?.alternativaEscolhida ?? null,
   );
+
   const [respondida, setRespondida] = useState(Boolean(respostaSalva));
+  const [respondendo, setRespondendo] = useState(false);
   const [anotando, setAnotando] = useState(false);
   const [anotacao, setAnotacao] = useState(
     estado.anotacoes[questao.id] ?? "",
   );
+
   const [resolucaoAberta, setResolucaoAberta] = useState(
     Boolean(respostaSalva),
   );
+
   const [comentarios, setComentarios] = useState<Comentario[]>(
     questao.comentarios,
   );
+
   const [novoComentario, setNovoComentario] = useState("");
   const [imagemUrl, setImagemUrl] = useState<string | null>(null);
   const [carregandoImagem, setCarregandoImagem] = useState(false);
@@ -96,23 +101,55 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
     };
   }, [questao.imagem_url]);
 
-  function responder() {
+  async function responder() {
     if (!selecionada) {
       toast.warning("Selecione uma alternativa antes de responder.");
       return;
     }
 
-    const alternativa = selecionada as Questao["correta"];
+    if (respondendo) {
+      return;
+    }
 
-    registrarResposta(questao, alternativa);
+    setRespondendo(true);
 
-    setRespondida(true);
-    setResolucaoAberta(true);
+    try {
+      const alternativa = selecionada as Questao["correta"];
 
-    if (alternativa === questao.correta) {
-      toast.success("Resposta correta! Muito bem.");
-    } else {
-      toast.error("Resposta incorreta. Confira a resolução comentada.");
+      const resultado = await registrarResposta(
+        questao,
+        alternativa,
+      );
+
+      // Erro técnico: não mostrar popup de limite.
+      if (resultado.erro) {
+        return;
+      }
+
+      // Limite diário atingido: único caso em que
+      // mostramos o popup relacionado ao limite.
+      if (resultado.erro) {
+  return;
+}
+
+if (!resultado.permitido) {
+  toast.error(
+    `Você atingiu o limite de ${resultado.limite} questões por dia.`,
+    {
+      description:
+        "Assine o QBMed para continuar respondendo questões sem limite.",
+    },
+  );
+
+  return;
+}
+
+      // Resposta permitida, inclusive para usuários premium.
+      // Nenhum popup é exibido aqui.
+      setRespondida(true);
+      setResolucaoAberta(true);
+    } finally {
+      setRespondendo(false);
     }
   }
 
@@ -282,7 +319,7 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
               <button
                 key={alt.letra}
                 type="button"
-                disabled={respondida}
+                disabled={respondida || respondendo}
                 onClick={() => setSelecionada(alt.letra)}
                 className={cn(
                   "flex w-full items-start gap-3 rounded-lg border p-3 text-left text-sm transition-colors",
@@ -327,7 +364,19 @@ export function QuestaoCard({ questao }: { questao: Questao }) {
 
         <div className="flex flex-wrap items-center gap-2">
           {!respondida ? (
-            <Button onClick={responder}>Responder</Button>
+            <Button
+              onClick={responder}
+              disabled={respondendo}
+            >
+              {respondendo ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Verificando...
+                </>
+              ) : (
+                "Responder"
+              )}
+            </Button>
           ) : (
             <>
               <div

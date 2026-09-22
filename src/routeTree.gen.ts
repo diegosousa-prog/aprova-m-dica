@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnotacoesRouteImport } from './routes/anotacoes'
+import { Route as AssinaturaRouteImport } from './routes/assinatura'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DesempenhoRouteImport } from './routes/desempenho'
@@ -32,6 +33,11 @@ const IndexRoute = IndexRouteImport.update({
 const AnotacoesRoute = AnotacoesRouteImport.update({
   id: '/anotacoes',
   path: '/anotacoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssinaturaRoute = AssinaturaRouteImport.update({
+  id: '/assinatura',
+  path: '/assinatura',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -100,6 +106,7 @@ const SimuladosResultadoTipoIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/anotacoes': typeof AnotacoesRoute
+  '/assinatura': typeof AssinaturaRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/desempenho': typeof DesempenhoRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/anotacoes': typeof AnotacoesRoute
+  '/assinatura': typeof AssinaturaRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/desempenho': typeof DesempenhoRoute
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/anotacoes': typeof AnotacoesRoute
+  '/assinatura': typeof AssinaturaRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
   '/desempenho': typeof DesempenhoRoute
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/anotacoes'
+    | '/assinatura'
     | '/auth'
     | '/dashboard'
     | '/desempenho'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/anotacoes'
+    | '/assinatura'
     | '/auth'
     | '/dashboard'
     | '/desempenho'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/anotacoes'
+    | '/assinatura'
     | '/auth'
     | '/dashboard'
     | '/desempenho'
@@ -200,6 +212,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnotacoesRoute: typeof AnotacoesRoute
+  AssinaturaRoute: typeof AssinaturaRoute
   AuthRoute: typeof AuthRoute
   DashboardRoute: typeof DashboardRoute
   DesempenhoRoute: typeof DesempenhoRoute
@@ -228,6 +241,13 @@ declare module '@tanstack/react-router' {
       path: '/anotacoes'
       fullPath: '/anotacoes'
       preLoaderRoute: typeof AnotacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assinatura': {
+      id: '/assinatura'
+      path: '/assinatura'
+      fullPath: '/assinatura'
+      preLoaderRoute: typeof AssinaturaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -320,6 +340,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnotacoesRoute: AnotacoesRoute,
+  AssinaturaRoute: AssinaturaRoute,
   AuthRoute: AuthRoute,
   DashboardRoute: DashboardRoute,
   DesempenhoRoute: DesempenhoRoute,
