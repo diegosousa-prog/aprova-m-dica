@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { notificacoes, usuario } from "@/data/mock";
+import { notificacoes } from "@/data/mock";
 import { supabase } from "@/lib/supabase";
 
 const navegacao = [
@@ -52,6 +52,14 @@ function obterIniciais(nome: string) {
   ).toUpperCase();
 }
 
+function formatarPlano(plano: string) {
+  if (plano === "premium") {
+    return "Premium";
+  }
+
+  return "Gratuito";
+}
+
 export function AppShell({
   children,
   titulo,
@@ -70,10 +78,9 @@ export function AppShell({
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
 
-  // Começa vazio para não mostrar o usuário fictício
-  // enquanto os dados reais estão sendo carregados.
   const [nomeUsuario, setNomeUsuario] = useState("");
   const [emailUsuario, setEmailUsuario] = useState("");
+  const [planoUsuario, setPlanoUsuario] = useState("");
 
   useEffect(() => {
     let ativo = true;
@@ -91,7 +98,7 @@ export function AppShell({
 
       const { data: perfil, error } = await supabase
         .from("profiles")
-        .select("nome")
+        .select("nome, plano")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -101,7 +108,7 @@ export function AppShell({
 
       if (error) {
         console.error(
-          "Erro ao carregar nome do usuário:",
+          "Erro ao carregar dados do usuário:",
           error,
         );
 
@@ -113,6 +120,8 @@ export function AppShell({
             email.split("@")[0] ||
             "Usuário",
         );
+
+        setPlanoUsuario("gratuito");
 
         return;
       }
@@ -126,9 +135,10 @@ export function AppShell({
 
       setEmailUsuario(email);
       setNomeUsuario(nome);
+      setPlanoUsuario(perfil?.plano ?? "gratuito");
     }
 
-    carregarUsuario();
+    void carregarUsuario();
 
     return () => {
       ativo = false;
@@ -214,12 +224,20 @@ export function AppShell({
           </p>
 
           <p className="whitespace-nowrap text-sm font-semibold">
-            {usuario.plano}
+            {planoUsuario
+              ? formatarPlano(planoUsuario)
+              : ""}
           </p>
 
-          <p className="mt-1 whitespace-nowrap text-xs opacity-70">
-            Renova em 18/12/2026
-          </p>
+          {planoUsuario === "premium" ? (
+            <p className="mt-1 whitespace-nowrap text-xs opacity-70">
+              Plano Premium ativo
+            </p>
+          ) : planoUsuario === "gratuito" ? (
+            <p className="mt-1 whitespace-nowrap text-xs opacity-70">
+              Plano gratuito
+            </p>
+          ) : null}
         </div>
       </aside>
 

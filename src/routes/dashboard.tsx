@@ -28,7 +28,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { questaoDoDia, simulados } from "@/data/mock";
+import { questaoDoDia } from "@/data/mock";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/dashboard")({
@@ -78,6 +78,14 @@ type AproveitamentoMes = {
   questoes: number;
 };
 
+type SimuladoOficial = {
+  id: number;
+  nome: string;
+  duracao_minutos: number;
+  created_at: string;
+  questoes: number;
+};
+
 function Dashboard() {
   const [carregando, setCarregando] = useState(true);
   const [totalQuestoes, setTotalQuestoes] = useState(0);
@@ -90,6 +98,9 @@ function Dashboard() {
     useState<AproveitamentoDia[]>([]);
   const [aproveitamentoMensal, setAproveitamentoMensal] =
     useState<AproveitamentoMes[]>([]);
+  const [simuladosOficiais, setSimuladosOficiais] = useState<
+    SimuladoOficial[]
+  >([]);
 
   useEffect(() => {
     async function carregarDados() {
@@ -420,10 +431,97 @@ function Dashboard() {
 
       setRecordeStreak(maiorStreak);
 
+      // ==================================================
+      // CARREGAR SIMULADOS OFICIAIS
+      // ==================================================
+
+      const {
+        data: simulados,
+        error: erroSimulados,
+      } = await supabase
+        .from("simulados")
+        .select(
+          "id, nome, duracao_minutos, created_at",
+        )
+        .eq("ativo", true)
+        .order("created_at", {
+          ascending: false,
+        })
+        .limit(5);
+
+      if (erroSimulados) {
+        console.error(
+          "ERRO AO CARREGAR SIMULADOS OFICIAIS:",
+          erroSimulados,
+        );
+        setSimuladosOficiais([]);
+      } else if (simulados && simulados.length > 0) {
+        const idsSimulados = simulados.map(
+          (simulado) => simulado.id,
+        );
+
+        const {
+          data: questoesSimulados,
+          error: erroQuestoesSimulados,
+        } = await supabase
+          .from("simulado_questoes")
+          .select("simulado_id")
+          .in("simulado_id", idsSimulados);
+
+        if (erroQuestoesSimulados) {
+          console.error(
+            "ERRO AO CARREGAR QUESTÕES DOS SIMULADOS:",
+            erroQuestoesSimulados,
+          );
+
+          setSimuladosOficiais(
+            simulados.map((simulado) => ({
+              id: simulado.id,
+              nome: simulado.nome,
+              duracao_minutos:
+                simulado.duracao_minutos,
+              created_at: simulado.created_at,
+              questoes: 0,
+            })),
+          );
+        } else {
+          const quantidadePorSimulado =
+            new Map<number, number>();
+
+          for (const questao of questoesSimulados ?? []) {
+            const atual =
+              quantidadePorSimulado.get(
+                questao.simulado_id,
+              ) ?? 0;
+
+            quantidadePorSimulado.set(
+              questao.simulado_id,
+              atual + 1,
+            );
+          }
+
+          setSimuladosOficiais(
+            simulados.map((simulado) => ({
+              id: simulado.id,
+              nome: simulado.nome,
+              duracao_minutos:
+                simulado.duracao_minutos,
+              created_at: simulado.created_at,
+              questoes:
+                quantidadePorSimulado.get(
+                  simulado.id,
+                ) ?? 0,
+            })),
+          );
+        }
+      } else {
+        setSimuladosOficiais([]);
+      }
+
       setCarregando(false);
     }
 
-    carregarDados();
+    void carregarDados();
   }, []);
 
   // ==================================================
@@ -450,6 +548,36 @@ function Dashboard() {
           100,
         )
       : 0;
+
+  function formatarDataSimulado(data: string) {
+    return new Intl.DateTimeFormat(
+      "pt-BR",
+      {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      },
+    ).format(new Date(data));
+  }
+
+  function formatarDuracao(
+    minutos: number,
+  ) {
+    const horas = Math.floor(
+      minutos / 60,
+    );
+
+    const minutosRestantes =
+      minutos % 60;
+
+    if (horas === 0) {
+      return `${minutosRestantes}min`;
+    }
+
+    return `${horas}h${String(
+      minutosRestantes,
+    ).padStart(2, "0")}`;
+  }
 
   return (
     <AppShell
@@ -794,25 +922,32 @@ function Dashboard() {
           </CardHeader>
 
           <CardContent className="space-y-3">
-            {simulados
-              .filter(
-                (s) => s.status === "Disponível",
-              )
-              .map((s) => (
+            {simuladosOficiais.length === 0 ? (
+              <p className="py-2 text-sm text-muted-foreground">
+                Nenhum simulado oficial disponível no momento.
+              </p>
+            ) : (
+              simuladosOficiais.map((simulado) => (
                 <div
-                  key={s.id}
+                  key={simulado.id}
                   className="rounded-lg border border-border p-3"
                 >
                   <p className="text-sm font-medium">
-                    {s.nome}
+                    {simulado.nome}
                   </p>
 
                   <p className="text-xs text-muted-foreground">
-                    {s.data} • {s.questoes} questões •{" "}
-                    {s.duracao}
+                    {formatarDataSimulado(
+                      simulado.created_at,
+                    )}{" "}
+                    • {simulado.questoes} questões •{" "}
+                    {formatarDuracao(
+                      simulado.duracao_minutos,
+                    )}
                   </p>
                 </div>
-              ))}
+              ))
+            )}
 
             <Button
               asChild
