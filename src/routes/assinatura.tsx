@@ -1,3 +1,5 @@
+import { prepararAssinaturaPremium } from "@/lib/pagamentos.functions";
+
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -112,12 +114,33 @@ function Assinatura() {
     };
   }, []);
 
-  function escolherPlano() {
-    toast.info("Pagamento em breve.", {
-      description:
-        "O checkout do QBMed será conectado na próxima etapa.",
+  async function escolherPlano() {
+  const resultado =
+    await prepararAssinaturaPremium();
+
+  if (!resultado.sucesso) {
+    toast.error("Não foi possível iniciar a assinatura.", {
+      description: resultado.erro,
     });
+
+    return;
   }
+
+  console.log(
+    "Plano Premium encontrado:",
+    resultado.plano,
+  );
+
+  console.log(
+    "Usuário autenticado:",
+    resultado.usuarioId,
+  );
+
+  toast.success("Plano Premium encontrado.", {
+    description:
+      "A estrutura de pagamento está funcionando.",
+  });
+}
 
   const valorFormatado = planoPremium
     ? planoPremium.valor.toLocaleString("pt-BR", {
